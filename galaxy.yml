@@ -1,0 +1,7 @@
+namespace: "pcc"
+name: "fortigate"
+version: "1.0.0"
+description: "A collection of Ansible Modules for FortiOS v6"
+readme: "README.md"
+authors:
+    - Pratinporn Insorn

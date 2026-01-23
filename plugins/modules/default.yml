@@ -1,0 +1,245 @@
+device_list:
+  - name: FGT-01
+    interfaces:
+      - name: port1
+        ip: 10.10.10.254
+        subnet: 255.255.255.0
+        status: up
+        protocol: up
+      - name: port2
+        ip: 172.16.1.1
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+    routing_table:
+      - destination: 0.0.0.0/0
+        gateway: 172.16.1.2
+        interface: port2
+        distance: 10
+
+  - name: FGT-02
+    interfaces:
+      - name: port1
+        ip: 10.10.20.254
+        subnet: 255.255.255.0
+        status: up
+        protocol: up
+      - name: port2
+        ip: 172.16.1.2
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+      - name: port3
+        ip: 172.16.2.2
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+    routing_table:
+      - destination: 10.10.10.0/24
+        gateway: 172.16.1.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.30.0/24
+        gateway: 172.16.2.1
+        interface: port3
+        distance: 10
+      - destination: 10.10.40.0/24
+        gateway: 172.16.2.1
+        interface: port3
+        distance: 10
+      - destination: 10.10.50.0/24
+        gateway: 172.16.2.1
+        interface: port3
+        distance: 10
+      - destination: 172.16.4.0/30
+        gateway: 172.16.2.1
+        interface: port3
+        distance: 10
+      - destination: 172.16.5.0/30
+        gateway: 172.16.2.1
+        interface: port3
+        distance: 10
+
+  - name: FGT-03
+    interfaces:
+      - name: port1
+        ip: 172.16.2.1
+        subnet: 255.255.255.0
+        status: up
+        protocol: up
+      - name: port2
+        ip: 172.16.4.1
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+      - name: port3
+        ip: 172.16.5.1
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+    routing_table:
+      - destination: 10.10.10.0/24
+        gateway: 172.16.2.2
+        interface: port1
+        distance: 10
+      - destination: 10.10.20.0/24
+        gateway: 172.16.2.2
+        interface: port1
+        distance: 10
+      - destination: 10.10.40.0/24
+        gateway: 172.16.4.2
+        interface: port2
+        distance: 10
+      - destination: 10.10.50.0/24
+        gateway: 172.16.5.2
+        interface: port3
+        distance: 10
+      - destination: 172.16.1.0/30
+        gateway: 172.16.2.2
+        interface: port1
+        distance: 10
+  
+  - name: FGT-04
+    interfaces:
+      - name: port1
+        ip: 10.10.40.254
+        subnet: 255.255.255.0
+        status: up
+        protocol: up
+      - name: port2
+        ip: 172.16.4.2
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+      - name: port3
+        ip: 172.16.6.2
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+    routing_table:
+      - destination: 10.10.10.0/24
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.20.0/24
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.50.0/24
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.60.0/24
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.60.0/24
+        gateway: 172.16.6.1
+        interface: port3
+        distance: 5
+      - destination: 172.16.1.0/30
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.2.0/30
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.5.0/30
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.7.0/30
+        gateway: 172.16.6.1
+        interface: port3
+        distance: 5
+      - destination: 172.16.7.0/30
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+
+  - name: FGT-05
+    interfaces:
+      - name: port1
+        ip: 10.10.50.254
+        subnet: 255.255.255.0
+        status: up
+        protocol: up
+      - name: port2
+        ip: 172.16.5.2
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+      - name: port3
+        ip: 172.16.7.2
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+    routing_table:
+      - destination: 10.10.10.0/24
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.20.0/24
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.40.0/24
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.60.0/24
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 10.10.60.0/24
+        gateway: 172.16.7.1
+        interface: port3
+        distance: 5
+      - destination: 172.16.1.0/30
+        gateway: 172.16.4.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.2.0/30
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.4.0/30
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.6.0/30
+        gateway: 172.16.5.1
+        interface: port2
+        distance: 10
+      - destination: 172.16.6.0/30
+        gateway: 172.16.7.1
+        interface: port3
+        distance: 5
+    
+  - name: FGT-06
+    interfaces:
+      - name: port1
+        ip: 10.10.60.254
+        subnet: 255.255.255.0
+        status: up
+        protocol: up
+      - name: port2
+        ip: 172.16.6.1
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+      - name: port3
+        ip: 172.16.7.1
+        subnet: 255.255.255.252
+        status: up
+        protocol: up
+    routing_table:
+      - destination: 0.0.0.0/0
+        gateway: 172.16.6.2
+        interface: port2
+        distance: 10
+      - destination: 0.0.0.0/0
+        gateway: 172.16.7.2
+        interface: port3
+        distance: 10
