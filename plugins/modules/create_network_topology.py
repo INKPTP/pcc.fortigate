@@ -128,9 +128,9 @@ def find_device_connections(devices):
 
 if __name__ == "__main__":
     module_args = dict(
-        rama6_ftg=dict(type="dict", required=True),
-        rama6_core_switch=dict(type="dict", required=True),
-        pttn_ftg=dict(type="dict", required=True),
+        rama6_ftg=dict(type="list", required=True),
+        rama6_core_switch=dict(type="list", required=True),
+        pttn_ftg=dict(type="list", required=True),
         
     )
 
