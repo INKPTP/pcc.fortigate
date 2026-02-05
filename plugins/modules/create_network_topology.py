@@ -88,7 +88,7 @@ def find_device_connections(devices):
         for interface in device['interfaces']:
             normalized_interfaces.extend(normalize_interface(interface))
         normalized_devices.append({
-            'name': device['name'],
+            'name': device['device_name'],
             'interfaces': normalized_interfaces
         })
         
