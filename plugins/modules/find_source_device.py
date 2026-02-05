@@ -27,14 +27,14 @@ def main():
                 interface_subnet = interface["subnet"]
                 network = ipaddress.ip_network(f"{interface_ip}/{interface_subnet}", strict=False)
             except KeyError as exc:
-                module.fail_json(msg=f"Missing interface field {exc} for device {device.get('name')}")
+                module.fail_json(msg=f"Missing interface field {exc} for device {device.get('device_name')}")
             except ValueError as exc:
-                module.fail_json(msg=f"Invalid interface definition for device {device.get('name')}: {exc}")
+                module.fail_json(msg=f"Invalid interface definition for device {device.get('device_name')}: {exc}")
 
             if source_interface.ip in network:
                 matched_device = {
                     "source_ip": str(source_interface.ip),
-                    "device_name": device.get("name"),
+                    "device_name": device.get("device_name"),
                     "source_device": True,
                     "device_info": device,
                 }
