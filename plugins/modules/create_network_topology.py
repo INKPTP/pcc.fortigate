@@ -129,7 +129,7 @@ def find_device_connections(devices):
 if __name__ == "__main__":
     module_args = dict(
         rama6_ftg=dict(type="list", required=True),
-        rama6_core_switch=dict(type="list", required=True),
+        rama6_core_switch=dict(type="dict", required=True),
         pttn_ftg=dict(type="list", required=True),
         
     )
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
 
-    all_devices = rama6_ftg + rama6_core_switch + pttn_ftg or []
+    all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg or []
     network_topology = find_device_connections(all_devices)
 
     module.exit_json(changed=False, result=network_topology)
