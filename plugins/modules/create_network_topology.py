@@ -79,7 +79,7 @@ def find_device_connections(devices):
     
     # Initialize connections dictionary for each device
     for device in devices:
-        connections[device['name']] = []
+        connections[device['device_name']] = []
     
     # Normalize all interfaces first
     normalized_devices = []
