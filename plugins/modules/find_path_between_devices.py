@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ansible.module_utils.basic import AnsibleModule
 import ipaddress
+import json
 from typing import List, Iterable, Optional, Dict, Any
 
 def get_device_connections(connections, device_name):
@@ -92,38 +92,58 @@ def _any_dest_in_network(dest_str: str, interface_ip: str, subnet_mask: str) -> 
         pass
     return False
 
-
 def find_next_hop(destination, routing_table):
+    """Find best matching route using real router rules:
+    1. Longest Prefix Match (LPM) wins
+    2. If prefix length ties → prefer lower metric/distance
+    3. Default route (0.0.0.0/0) is last resort
+    """
     dest_objs = _parse_destination(destination)
-    next_hop = None
+    matching_routes = []
 
+    # Find all matching routes (exclude default route in first pass)
     for route in routing_table:
         cidr = route.get("ip_mask")
         if not cidr:
+            cidr = route.get("destination")
+        if not cidr:
             continue
+            
         try:
             route_net = ipaddress.ip_network(cidr, strict=False)
         except ValueError:
             continue
+            
         if cidr == "0.0.0.0/0":
             continue  # skip default route in first pass
+            
         if _dest_overlaps_route(dest_objs, route_net):
-            next_hop = route
-            break
+            # Extract metric/distance for tie-breaking
+            metric = route.get("metric", 0)
+            distance = route.get("distance", 0)
+            matching_routes.append({
+                "route": route,
+                "prefix_len": route_net.prefixlen,
+                "metric": int(metric) if metric else 0,
+                "distance": int(distance) if distance else 0
+            })
 
-    if next_hop is None:
-        for route in routing_table:
-            cidr = route.get("ip_mask")
-            if cidr != "0.0.0.0/0":
-                continue
+    # Sort by: 1) Longest prefix (descending), 2) Lowest metric, 3) Lowest distance
+    if matching_routes:
+        matching_routes.sort(key=lambda x: (-x["prefix_len"], x["metric"], x["distance"]))
+        return matching_routes[0]["route"]
+
+    # No match found, try default route (last resort)
+    for route in routing_table:
+        cidr = route.get("ip_mask") or route.get("destination")
+        if cidr == "0.0.0.0/0":
             try:
                 ipaddress.ip_network(cidr, strict=False)
+                return route
             except ValueError:
                 continue
-            next_hop = route
-            break
-
-    return next_hop
+    
+    return None
 
 def find_device_path(source_device, destination_ip, all_devices, connections, max_hops=20):
     """Find firewall path from source device to destination IP."""
@@ -135,22 +155,26 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
     debug_info = []
 
     while current_device is not None and hops < max_hops:
+        print("="*80)
         hops += 1
         routing_table = current_device.get("routing_table", [])
-        if not routing_table:
-            debug_info.append(f"Hop {hops}: No routing table on {current_name}")
-            break
-        
         current_next_hop = find_next_hop(destination_ip, routing_table)
+        
         if current_next_hop is None:
             debug_info.append(f"Hop {hops}: No route found for {destination_ip} on {current_name}")
             break
         
         # Check if destination is directly connected (route type is "connect")
         route_type = current_next_hop.get("type", "").lower()
-        gateway = current_next_hop.get("gateway")
-        ip_mask = current_next_hop.get("ip_mask")
+        gateway = current_next_hop.get("next_hop") or current_next_hop.get("gateway")
+        ip_mask = current_next_hop.get("ip_mask") or current_next_hop.get("ip")
         debug_info.append(f"Hop {hops}: {current_name} -> route {ip_mask} type={route_type} gateway={gateway}")
+        
+        print(f"current_name: {current_name}")
+        print(f"current_next_hop_ip: {current_next_hop.get("next_hop") or current_next_hop.get("gateway")}")
+        print(f"route_type: {route_type}")
+        print(f"gateway: {gateway}")
+        print(f"ip_mask: {ip_mask}")
         
         if route_type == "connect":
             # Destination is on this device, we're done
@@ -163,6 +187,8 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
             break
         
         connected_device_names = get_device_connections(connections, current_name)
+        print(f"connected_device_names: {connected_device_names}")
+        
         debug_info.append(f"Hop {hops}: Connected devices: {connected_device_names}")
         if not connected_device_names:
             debug_info.append(f"Hop {hops}: No connected devices found for {current_name}")
@@ -218,7 +244,6 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
         "status": "completed" if hops < max_hops else "max_hops_reached",
         "debug": debug_info
     }
-                
 
 if __name__ == "__main__":
     module_args = dict(
@@ -243,3 +268,4 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
