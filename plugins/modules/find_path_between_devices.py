@@ -156,7 +156,6 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
     debug_info = []
 
     while current_device is not None and hops < max_hops:
-        print("="*80)
         hops += 1
         routing_table = current_device.get("routing_table", [])
         current_next_hop = find_next_hop(destination_ip, routing_table)
@@ -171,12 +170,6 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
         ip_mask = current_next_hop.get("ip_mask") or current_next_hop.get("ip")
         debug_info.append(f"Hop {hops}: {current_name} -> route {ip_mask} type={route_type} gateway={gateway}")
         
-        print(f"current_name: {current_name}")
-        print(f"current_next_hop_ip: {current_next_hop.get("next_hop") or current_next_hop.get("gateway")}")
-        print(f"route_type: {route_type}")
-        print(f"gateway: {gateway}")
-        print(f"ip_mask: {ip_mask}")
-        
         if route_type == "connect":
             # Destination is on this device, we're done
             debug_info.append(f"Hop {hops}: Destination directly connected on {current_name}")
@@ -188,7 +181,6 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
             break
         
         connected_device_names = get_device_connections(connections, current_name)
-        print(f"connected_device_names: {connected_device_names}")
         
         debug_info.append(f"Hop {hops}: Connected devices: {connected_device_names}")
         if not connected_device_names:
@@ -269,5 +261,6 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
 
 
