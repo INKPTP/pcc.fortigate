@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ansible.module_utils.basic import AnsibleModule
 import ipaddress
 import json
 from typing import List, Iterable, Optional, Dict, Any
@@ -268,4 +269,5 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
 
