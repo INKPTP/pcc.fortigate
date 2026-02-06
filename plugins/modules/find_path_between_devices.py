@@ -157,14 +157,10 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
         if current_next_hop is None:
             break
         
-        # Check if destination is directly connected on any interface
-        found_local = False
-        for interface in current_device.get("interfaces", []):
-            if _any_dest_in_network(destination_ip, interface.get("ip"), interface.get("subnet")):
-                found_local = True
-                break
-        
-        if found_local:
+        # Check if destination is directly connected (route type is "connect")
+        route_type = current_next_hop.get("type", "").lower()
+        if route_type == "connect":
+            # Destination is on this device, we're done
             break
         
         # Find next device via gateway
