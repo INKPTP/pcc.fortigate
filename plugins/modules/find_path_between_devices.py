@@ -96,18 +96,30 @@ def find_next_hop(destination, routing_table):
     next_hop = None
 
     for route in routing_table:
-        route_net = ipaddress.ip_network(route.get("ip_mask"), strict=False)
-        if route.get("ip_mask") == "0.0.0.0/0":
-            continue  # skip default route
+        cidr = route.get("ip_mask")
+        if not cidr:
+            continue
+        try:
+            route_net = ipaddress.ip_network(cidr, strict=False)
+        except ValueError:
+            continue
+        if cidr == "0.0.0.0/0":
+            continue  # skip default route in first pass
         if _dest_overlaps_route(dest_objs, route_net):
             next_hop = route
             break
 
     if next_hop is None:
         for route in routing_table:
-            if route.get("ip_mask") == "0.0.0.0/0":
-                next_hop = route
-                break
+            cidr = route.get("ip_mask")
+            if cidr != "0.0.0.0/0":
+                continue
+            try:
+                ipaddress.ip_network(cidr, strict=False)
+            except ValueError:
+                continue
+            next_hop = route
+            break
 
     return next_hop
 
@@ -193,4 +205,3 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
-
