@@ -4,34 +4,20 @@ import ipaddress
 from typing import List, Iterable, Optional, Dict, Any
 
 def get_device_connections(connections, device_name):
-    """Print connections for a specific device"""
+    """Get list of connected device names for a specific device"""
     if device_name not in connections:
-        print(f"Device '{device_name}' not found.")
-        return
+        return []
     
     device_connections = connections[device_name]
     
-    print("\n" + "="*80)
-    print(f"DEVICE: {device_name}")
-    print("="*80)
-    
     if not device_connections:
-        print("No connections found.")
-    else:
-        remote_device_list = []
-        for i, conn in enumerate(device_connections, 1):
-            if conn['remote_device'] not in remote_device_list:
-                remote_device_list.append(conn['remote_device'])
-                print(f"   Local Device:    {conn['local_device']}")
-                print(f"   Local Interface:  {conn['local_interface']} ({conn['local_ip']})")
-                print(f"   Remote Interface: {conn['remote_interface']} ({conn['remote_ip']})")
-                print(f"   Subnet: {conn['subnet']}")
-                print()
+        return []
+    
+    remote_device_list = []
+    for conn in device_connections:
+        if conn['remote_device'] not in remote_device_list:
+            remote_device_list.append(conn['remote_device'])
                 
-        print(f"Connected to {len(remote_device_list)} device(s):\n")
-        for conn in remote_device_list:
-            print(conn)
-    print("="*80)
     return remote_device_list
 
 def _parse_destination(dest: str) -> List[ipaddress._BaseAddress | ipaddress._BaseNetwork]:
@@ -146,30 +132,40 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
     device_path = [current_name]
     visited = {current_name}
     hops = 0
+    debug_info = []
 
     while current_device is not None and hops < max_hops:
         hops += 1
         routing_table = current_device.get("routing_table", [])
         if not routing_table:
+            debug_info.append(f"Hop {hops}: No routing table on {current_name}")
             break
         
         current_next_hop = find_next_hop(destination_ip, routing_table)
         if current_next_hop is None:
+            debug_info.append(f"Hop {hops}: No route found for {destination_ip} on {current_name}")
             break
         
         # Check if destination is directly connected (route type is "connect")
         route_type = current_next_hop.get("type", "").lower()
+        gateway = current_next_hop.get("gateway")
+        ip_mask = current_next_hop.get("ip_mask")
+        debug_info.append(f"Hop {hops}: {current_name} -> route {ip_mask} type={route_type} gateway={gateway}")
+        
         if route_type == "connect":
             # Destination is on this device, we're done
+            debug_info.append(f"Hop {hops}: Destination directly connected on {current_name}")
             break
         
         # Find next device via gateway
-        gateway = current_next_hop.get("gateway")
         if not gateway or gateway == "0.0.0.0":
+            debug_info.append(f"Hop {hops}: Invalid gateway {gateway} on {current_name}")
             break
         
         connected_device_names = get_device_connections(connections, current_name)
+        debug_info.append(f"Hop {hops}: Connected devices: {connected_device_names}")
         if not connected_device_names:
+            debug_info.append(f"Hop {hops}: No connected devices found for {current_name}")
             break
         
         next_device = None
@@ -202,12 +198,15 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
                 break
         
         if next_device is None:
+            debug_info.append(f"Hop {hops}: No device found with gateway IP {gateway}")
             break
         
         next_name = next_device.get("device_name")
         if next_name in visited:
+            debug_info.append(f"Hop {hops}: Loop detected - {next_name} already visited")
             break
         
+        debug_info.append(f"Hop {hops}: Moving to {next_name}")
         device_path.append(next_name)
         visited.add(next_name)
         current_device = next_device
@@ -216,7 +215,8 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
     return {
         "path": device_path,
         "hops": hops,
-        "status": "completed" if hops < max_hops else "max_hops_reached"
+        "status": "completed" if hops < max_hops else "max_hops_reached",
+        "debug": debug_info
     }
                 
 
