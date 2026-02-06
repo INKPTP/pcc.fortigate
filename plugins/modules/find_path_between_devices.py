@@ -180,6 +180,8 @@ if __name__ == "__main__":
         pttn_ftg=dict(type="list", required=True),
     )
 
+    module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
+    
     network_topology = module.params["network_topology"]
     source_device = module.params["source_device"]
     destination_ip = module.params["destination_ip"]
@@ -191,3 +193,4 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
