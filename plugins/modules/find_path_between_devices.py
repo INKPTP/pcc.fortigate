@@ -90,6 +90,22 @@ def _find_device_by_gateway(gateway: str, all_devices: List[Dict[str, Any]]):
                     return device
     return None
 
+def _any_dest_in_network(dest_str: str, interface_ip: str, subnet_mask: str) -> bool:
+    """Check if parsed destination overlaps/fits in the interface network."""
+    if not interface_ip or not subnet_mask:
+        return False
+    try:
+        cidr = ipaddress.IPv4Network(f"0.0.0.0/{subnet_mask}").prefixlen
+        interface_net = ipaddress.ip_network(f"{interface_ip}/{cidr}", strict=False)
+        for obj in _parse_destination(dest_str):
+            if isinstance(obj, ipaddress._BaseAddress) and obj in interface_net:
+                return True
+            if isinstance(obj, ipaddress._BaseNetwork) and obj.subnet_of(interface_net):
+                return True
+    except (ValueError, AttributeError):
+        pass
+    return False
+
 
 def find_next_hop(destination, routing_table):
     dest_objs = _parse_destination(destination)
@@ -123,62 +139,72 @@ def find_next_hop(destination, routing_table):
 
     return next_hop
 
-def find_device_path(source_device, destination_ip, all_devices, connections):
+def find_device_path(source_device, destination_ip, all_devices, connections, max_hops=20):
     """Find firewall path from source device to destination IP."""
     current_device = source_device
     current_name = current_device.get("device_name") or current_device.get("name")
     device_path = [current_name]
     visited = {current_name}
+    hops = 0
 
-    max_hops = len(all_devices) + 5  # simple guard against infinite loops
-
-    for _ in range(max_hops):
+    while current_device is not None and hops < max_hops:
+        hops += 1
         routing_table = current_device.get("routing_table", [])
-        next_hop_route = find_next_hop(destination_ip, routing_table)
-
-        if not next_hop_route:
-            return {
-                "path": device_path,
-                "status": "no_route",
-                "detail": "No matching or default route found",
-            }
-
-        gateway = next_hop_route.get("gateway")
-        # If directly connected or no gateway, destination is considered reached at this device
-        if next_hop_route.get("type") == "connect" or gateway in (None, "0.0.0.0"):
-            return {
-                "path": device_path,
-                "status": "reached",
-                "exit_device": current_name,
-                "next_hop": next_hop_route,
-            }
-
-        next_device = _find_device_by_gateway(gateway, all_devices)
-        if not next_device:
-            return {
-                "path": device_path,
-                "status": "gateway_not_found",
-                "missing_gateway": gateway,
-                "next_hop": next_hop_route,
-            }
-
-        next_name = next_device.get("device_name") or next_device.get("name")
+        if not routing_table:
+            break
+        
+        current_next_hop = find_next_hop(destination_ip, routing_table)
+        if current_next_hop is None:
+            break
+        
+        # Check if destination is directly connected on any interface
+        found_local = False
+        for interface in current_device.get("interfaces", []):
+            if _any_dest_in_network(destination_ip, interface.get("ip"), interface.get("subnet")):
+                found_local = True
+                break
+        
+        if found_local:
+            break
+        
+        # Find next device via gateway
+        gateway = current_next_hop.get("gateway")
+        if not gateway or gateway == "0.0.0.0":
+            break
+        
+        connected_device_list = get_device_connections(connections, current_name)
+        if not connected_device_list:
+            break
+        
+        next_device = None
+        for con_device in connected_device_list:
+            con_device_name = con_device.get("device_name")
+            if con_device_name in visited:
+                continue
+            for interface in con_device.get("interfaces", []):
+                interface_ip = interface.get("ip")
+                if interface_ip and interface_ip.split("/")[0] == gateway:
+                    next_device = con_device
+                    break
+            if next_device:
+                break
+        
+        if next_device is None:
+            break
+        
+        next_name = next_device.get("device_name")
         if next_name in visited:
-            return {
-                "path": device_path,
-                "status": "loop_detected",
-                "at_device": next_name,
-            }
-
+            break
+        
         device_path.append(next_name)
         visited.add(next_name)
         current_device = next_device
         current_name = next_name
-
+                            
     return {
         "path": device_path,
-        "status": "max_hops_exceeded",
-        "detail": f"Exceeded {max_hops} hops without reaching destination",
+        "hops": hops,
+        "status": "completed" if hops < max_hops else "max_hops_reached"
     }
                 
 
