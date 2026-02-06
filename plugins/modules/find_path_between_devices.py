@@ -168,19 +168,35 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
         if not gateway or gateway == "0.0.0.0":
             break
         
-        connected_device_list = get_device_connections(connections, current_name)
-        if not connected_device_list:
+        connected_device_names = get_device_connections(connections, current_name)
+        if not connected_device_names:
             break
         
         next_device = None
-        for con_device in connected_device_list:
-            con_device_name = con_device.get("device_name")
-            if con_device_name in visited:
+        for device_name in connected_device_names:
+            if device_name in visited:
                 continue
-            for interface in con_device.get("interfaces", []):
+            # Find the actual device object from all_devices
+            candidate = None
+            for dev in all_devices:
+                if dev.get("device_name") == device_name:
+                    candidate = dev
+                    break
+            
+            if candidate is None:
+                continue
+            
+            # Check if this device has an interface with the gateway IP
+            for interface in candidate.get("interfaces", []):
                 interface_ip = interface.get("ip")
-                if interface_ip and interface_ip.split("/")[0] == gateway:
-                    next_device = con_device
+                if interface_ip:
+                    # Handle both string and list formats
+                    ip_list = [interface_ip] if isinstance(interface_ip, str) else interface_ip
+                    for ip_val in ip_list:
+                        if ip_val and ip_val.split("/")[0] == gateway:
+                            next_device = candidate
+                            break
+                if next_device:
                     break
             if next_device:
                 break
