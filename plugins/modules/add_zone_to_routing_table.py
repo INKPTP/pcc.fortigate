@@ -36,7 +36,7 @@ def main():
 
     # Add zone name to each interface
     matched = 0
-    for interface in routing_table_data:
+    for interface in routing_table_data["routing_table"]:
         interface_name = interface.get('name') or interface.get('interface')
         vdom = interface.get('vdom', 'unknown')
         
@@ -52,4 +52,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
