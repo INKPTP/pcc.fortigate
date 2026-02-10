@@ -87,16 +87,16 @@ def main():
             dest_network, dest_iface = _parse_source(destination_ip)
             temp_destination_ip_list.append(str(dest_network))
         except ValueError as exc:
-            pass
-            # module.fail_json(msg=str(exc))
+            # pass
+            module.fail_json(msg=str(exc))
     destination_ip_list = temp_destination_ip_list
     
     for source_ip in source_ip_list:
         try:
             source_network, source_iface = _parse_source(source_ip)
         except ValueError as exc:
-            pass
-            # module.fail_json(msg=str(exc))
+            # pass
+            module.fail_json(msg=str(exc))
 
         matched_device = None
 
@@ -153,9 +153,9 @@ def main():
             matched_device_list.append(matched_device)
 
         
-    print(json.dumps(matched_device_list, indent=2))
+    # print(json.dumps(matched_device_list, indent=2))
 
-    # module.exit_json(changed=False, result=matched_device)
+    module.exit_json(changed=False, result=matched_device_list)
 
 
 if __name__ == "__main__":
