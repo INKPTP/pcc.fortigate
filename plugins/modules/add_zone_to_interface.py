@@ -36,7 +36,7 @@ def main():
 
     # Add zone name to each interface
     matched = 0
-    for interface in interface_data['fortigate_pttn_interface_result']:
+    for interface in interface_data:
         interface_name = interface.get('name') or interface.get('interface')
         vdom = interface.get('vdom', 'unknown')
         
@@ -52,4 +52,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
