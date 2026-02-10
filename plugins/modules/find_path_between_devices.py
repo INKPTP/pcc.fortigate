@@ -126,7 +126,7 @@ def find_next_hop(destination, routing_table):
 
 def find_device_path(source_device, destination_ip, all_devices, connections, service_list=None, max_hops=20):
     """Find firewall path from source device to destination IP."""
-    current_device_detail = source_device
+    current_device_detail = source_device["device_info"]
     current_device = source_device
     current_name = current_device_detail.get("device_name") or current_device_detail.get("name")
     device_path = [current_name]
