@@ -5,7 +5,7 @@ import ipaddress
 def main():
     module_args = dict(
         zone=dict(type="list", required=True),
-        routing_table=dict(type="list", required=True),
+        routing_table=dict(type="dict", required=True),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -54,5 +54,6 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
