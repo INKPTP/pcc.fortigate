@@ -21,6 +21,65 @@ def get_device_connections(connections, device_name):
                 
     return remote_device_list
 
+def _parse_source(source_ip: str):
+    """Return (source_network, source_ip_obj) where one of them is set."""
+
+    try:
+        if "/" in source_ip:
+            try:
+                return ipaddress.ip_network(source_ip, strict=False), None
+            except ValueError:
+                iface = ipaddress.ip_interface(source_ip)
+                return iface.network, iface
+        if "-" in source_ip:
+            start_ip, end_ip = source_ip.split("-", 1)
+            start_ip_obj = ipaddress.ip_address(start_ip.strip())
+            end_ip_obj = ipaddress.ip_address(end_ip.strip())
+            if type(start_ip_obj) is not type(end_ip_obj):
+                raise ValueError("Start and end IP addresses are of different types")
+            # Create the smallest network that includes both IPs
+            combined = ipaddress.summarize_address_range(start_ip_obj, end_ip_obj)
+            # Return the first network in the summary (there should be only one)
+            return next(combined), None
+        iface = ipaddress.ip_interface(f"{source_ip}/32")
+        return iface.network, iface
+    except ValueError as exc:
+        raise ValueError(f"Invalid source_ip '{source_ip}': {exc}") from exc
+
+def _interface_networks(interface):
+    """Yield ip_network objects from interface definitions.
+
+    Supports:
+    - interface['ip'] as a string with or without prefix; optional interface['subnet'].
+    - interface['ip'] as a list of strings with prefixes.
+    Silently skips invalid or missing data instead of failing the module.
+    """
+
+    ip_field = interface.get("ip")
+    subnet = interface.get("subnet")
+
+    def _to_network(ip_value):
+        if ip_value is None:
+            return None
+        try:
+            if "/" in ip_value:
+                return ipaddress.ip_network(ip_value, strict=False)
+            if subnet is not None:
+                return ipaddress.ip_network(f"{ip_value}/{subnet}", strict=False)
+        except ValueError:
+            return None
+        return None
+
+    if isinstance(ip_field, list):
+        for ip_value in ip_field:
+            net = _to_network(ip_value)
+            if net:
+                yield net
+    else:
+        net = _to_network(ip_field)
+        if net:
+            yield net
+
 def _parse_destination(dest: str) -> List[ipaddress._BaseAddress | ipaddress._BaseNetwork]:
     """Parse destination string supporting:
     - single IP (e.g., 10.10.3.155)
@@ -99,7 +158,7 @@ def find_next_hop(destination, routing_table):
     2. If prefix length ties → prefer lower metric/distance
     3. Default route (0.0.0.0/0) is last resort
     """
-    dest_objs = _parse_destination(destination)
+    dest_objs = _parse_destination(destination[0])
     matching_routes = []
 
     # Find all matching routes (exclude default route in first pass)
@@ -146,22 +205,48 @@ def find_next_hop(destination, routing_table):
     
     return None
 
-def find_device_path(source_device, destination_ip, all_devices, connections, max_hops=20):
+def find_source_interface(source_ip_list, interfaces):
+    for source in source_ip_list:
+        try:
+            source_network, source_iface = _parse_source(source)
+        except ValueError as exc:
+            module.fail_json(msg=str(exc))
+        
+    for interface in interfaces:
+        for interface_network in _interface_networks(interface):
+            in_same_network = (
+                (source_iface and source_iface.ip in interface_network)
+                or (not source_iface and source_network.overlaps(interface_network))
+            )
+
+            if in_same_network:
+                # Create unique key for device+interface
+                interface_name = interface.get("name") or interface.get("interface")
+                return interface
+    return None
+                
+
+
+def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20):
     """Find firewall path from source device to destination IP."""
     current_device = source_device
     current_name = current_device.get("device_name") or current_device.get("name")
     device_path = [current_name]
+    device_path_detail = []
     visited = {current_name}
     hops = 0
     debug_info = []
+    
 
     while current_device is not None and hops < max_hops:
         hops += 1
         routing_table = current_device.get("routing_table", [])
-        current_next_hop = find_next_hop(destination_ip, routing_table)
+        current_next_hop = find_next_hop(destination_list, routing_table)
+        
+        current_source_interface = find_source_interface(source_device["source"], current_device.get("interfaces", []))
         
         if current_next_hop is None:
-            debug_info.append(f"Hop {hops}: No route found for {destination_ip} on {current_name}")
+            debug_info.append(f"Hop {hops}: No route found for {destination_list} on {current_name}")
             break
         
         # Check if destination is directly connected (route type is "connect")
@@ -169,6 +254,24 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
         gateway = current_next_hop.get("next_hop") or current_next_hop.get("gateway")
         ip_mask = current_next_hop.get("ip_mask") or current_next_hop.get("destination")
         debug_info.append(f"Hop {hops}: {current_name} -> route {ip_mask} type={route_type} gateway={gateway}")
+        device_path_detail.append({
+            "device": current_name,
+            "firewall_rule": {
+                "incoming_interface": current_source_interface["zone"] if current_source_interface else None,
+                "outgoing_interface": current_next_hop.get("interface")["zone"] if current_source_interface else None,
+                "source": source_device["source"],
+                "destination": destination_list,
+                "service": service_list,
+            },
+            "incoming_interface": current_source_interface,
+            "outgoing_interface": current_next_hop.get("interface"),
+            "route_info":{
+                "route": ip_mask,
+                "type": route_type,
+                "gateway": gateway,
+                }
+        })
+            
         
         if route_type == "connect":
             # Destination is on this device, we're done
@@ -242,8 +345,8 @@ if __name__ == "__main__":
     module_args = dict(
         network_topology=dict(type="dict", required=True),
         source_device=dict(type="dict", required=True),
-        source_ip=dict(type="str", required=True),
-        destination_ip=dict(type="str", required=True), 
+        destination_list=dict(type="list", required=True), 
+        service_list=dict(type="list", required=True), 
         rama6_ftg=dict(type="list", required=True),
         rama6_core_switch=dict(type="dict", required=True),
         pttn_ftg=dict(type="list", required=True),
@@ -253,12 +356,14 @@ if __name__ == "__main__":
     
     network_topology = module.params["network_topology"]
     source_device = module.params["source_device"]
-    destination_ip = module.params["destination_ip"]
+    destination_list = module.params["destination_ip"]
+    service_list = module.params["service_list"]
     rama6_ftg = module.params["rama6_ftg"]
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
+    source_ip_list = source_device["source"]
 
     all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg
-    device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
+    device_path = find_device_path(source_device, destination_list, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
