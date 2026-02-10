@@ -336,6 +336,7 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
                             
     return {
         "path": device_path,
+        "path_detail": device_path_detail,
         "hops": hops,
         "status": "completed" if hops < max_hops else "max_hops_reached",
         "debug": debug_info
@@ -367,4 +368,5 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_list, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
 
