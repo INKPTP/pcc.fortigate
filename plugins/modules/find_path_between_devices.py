@@ -167,7 +167,7 @@ def find_device_path(source_device, destination_ip, all_devices, connections, ma
         # Check if destination is directly connected (route type is "connect")
         route_type = current_next_hop.get("type", "").lower()
         gateway = current_next_hop.get("next_hop") or current_next_hop.get("gateway")
-        ip_mask = current_next_hop.get("ip_mask") or current_next_hop.get("ip")
+        ip_mask = current_next_hop.get("ip_mask") or current_next_hop.get("destination")
         debug_info.append(f"Hop {hops}: {current_name} -> route {ip_mask} type={route_type} gateway={gateway}")
         
         if route_type == "connect":
@@ -261,6 +261,7 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_ip, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
 
 
 
