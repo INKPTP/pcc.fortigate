@@ -356,7 +356,7 @@ if __name__ == "__main__":
     
     network_topology = module.params["network_topology"]
     source_device = module.params["source_device"]
-    destination_list = module.params["destination_ip"]
+    destination_list = module.params["destination_list"]
     service_list = module.params["service_list"]
     rama6_ftg = module.params["rama6_ftg"]
     rama6_core_switch = module.params["rama6_core_switch"]
@@ -367,3 +367,4 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_list, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
+
