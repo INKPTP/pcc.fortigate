@@ -158,7 +158,7 @@ def find_next_hop(destination, routing_table):
     2. If prefix length ties → prefer lower metric/distance
     3. Default route (0.0.0.0/0) is last resort
     """
-    dest_objs = _parse_destination(destination[0])
+    dest_objs = _parse_destination(destination)
     matching_routes = []
 
     # Find all matching routes (exclude default route in first pass)
@@ -211,6 +211,7 @@ def find_source_interface(source_ip_list, interfaces):
             source_network, source_iface = _parse_source(source)
         except ValueError as exc:
             module.fail_json(msg=str(exc))
+            # pass
         
     for interface in interfaces:
         for interface_network in _interface_networks(interface):
@@ -225,11 +226,10 @@ def find_source_interface(source_ip_list, interfaces):
                 return interface
     return None
                 
-
-
 def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20):
     """Find firewall path from source device to destination IP."""
-    current_device = source_device
+    print(f"Finding path from {source_device['device_name']} to {destination_list}...")
+    current_device = source_device["device_info"]
     current_name = current_device.get("device_name") or current_device.get("name")
     device_path = [current_name]
     device_path_detail = []
@@ -241,12 +241,12 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
     while current_device is not None and hops < max_hops:
         hops += 1
         routing_table = current_device.get("routing_table", [])
-        current_next_hop = find_next_hop(destination_list, routing_table)
+        current_next_hop = find_next_hop(destination_list[0], routing_table)
         
         current_source_interface = find_source_interface(source_device["source"], current_device.get("interfaces", []))
         
         if current_next_hop is None:
-            debug_info.append(f"Hop {hops}: No route found for {destination_list} on {current_name}")
+            debug_info.append(f"Hop {hops}: No route found for {destination_list[0]} on {current_name}")
             break
         
         # Check if destination is directly connected (route type is "connect")
@@ -363,8 +363,21 @@ if __name__ == "__main__":
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
     source_ip_list = source_device["source"]
+    # json_file_path = r"D:\##--Work--##\code\ansible_collection\pcc.fortigate\vars\input2.json"
+    
+    # with open(json_file_path, 'r', encoding='utf-8') as f:
+    #     data = json.load(f)
+        
+    # network_topology = data["network_topology"]
+    # source_device = data["source_device"]
+    # destination_list = data["destination_list"]
+    # service_list = data["service_list"]
+    # rama6_ftg = data["rama6_ftg"]
+    # rama6_core_switch = data["rama6_core_switch"]
+    # pttn_ftg = data["pttn_ftg"]
 
     all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg
     device_path = find_device_path(source_device, destination_list, all_devices, network_topology)
 
+    # print(json.dumps(device_path, indent=2))
     module.exit_json(changed=False, result=device_path)
