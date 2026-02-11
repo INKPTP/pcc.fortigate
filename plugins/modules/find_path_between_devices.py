@@ -368,5 +368,3 @@ if __name__ == "__main__":
     device_path = find_device_path(source_device, destination_list, all_devices, network_topology)
 
     module.exit_json(changed=False, result=device_path)
-
-
