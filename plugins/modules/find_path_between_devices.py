@@ -258,13 +258,11 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
             "device": current_name,
             "firewall_rule": {
                 "incoming_interface": current_source_interface["zone"] if current_source_interface else None,
-                "outgoing_interface": current_next_hop.get("interface")["zone"] if current_source_interface else None,
+                "outgoing_interface": current_next_hop["zone"] if current_source_interface else None,
                 "source": source_device["source"],
                 "destination": destination_list,
                 "service": service_list,
             },
-            "incoming_interface": current_source_interface,
-            "outgoing_interface": current_next_hop.get("interface"),
             "route_info":{
                 "route": ip_mask,
                 "type": route_type,
@@ -381,3 +379,4 @@ if __name__ == "__main__":
 
     # print(json.dumps(device_path, indent=2))
     module.exit_json(changed=False, result=device_path)
+
