@@ -158,6 +158,8 @@ def find_next_hop(destination, routing_table):
     2. If prefix length ties → prefer lower metric/distance
     3. Default route (0.0.0.0/0) is last resort
     """
+    if "192.168.201.10" in  destination:
+        print(destination)
     dest_objs = _parse_destination(destination)
     matching_routes = []
 
@@ -191,6 +193,9 @@ def find_next_hop(destination, routing_table):
     # Sort by: 1) Longest prefix (descending), 2) Lowest metric, 3) Lowest distance
     if matching_routes:
         matching_routes.sort(key=lambda x: (-x["prefix_len"], x["metric"], x["distance"]))
+        if "192.168.201.10" in  destination:
+            print("# Sort by: 1) Longest prefix (descending), 2) Lowest metric, 3) Lowest distance")
+            print(f"{matching_routes[0]["route"]}")
         return matching_routes[0]["route"]
 
     # No match found, try default route (last resort)
@@ -199,7 +204,10 @@ def find_next_hop(destination, routing_table):
         if cidr == "0.0.0.0/0":
             try:
                 ipaddress.ip_network(cidr, strict=False)
-                return route
+                if "192.168.201.10" in  destination:
+                    print("# No match found, try default route (last resort)")
+                    print(f"{route}")
+                return 
             except ValueError:
                 continue
     
@@ -229,6 +237,7 @@ def find_source_interface(source_ip_list, interfaces):
 def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20):
     """Find firewall path from source device to destination IP."""
     print(f"Finding path from {source_device['device_name']} to {destination_list}...")
+    source = source_device["source"]
     current_device = source_device["device_info"]
     current_name = current_device.get("device_name") or current_device.get("name")
     device_path = [current_name]
@@ -242,8 +251,11 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
         hops += 1
         routing_table = current_device.get("routing_table", [])
         current_next_hop = find_next_hop(destination_list[0], routing_table)
+        current_incoming_interface_key = []
+        current_incoming_interface_list = []
+        current_outgoing_interface_key = []
+        current_outgoing_interface_list = []
         
-        current_source_interface = find_source_interface(source_device["source"], current_device.get("interfaces", []))
         
         if current_next_hop is None:
             debug_info.append(f"Hop {hops}: No route found for {destination_list[0]} on {current_name}")
@@ -254,22 +266,49 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
         gateway = current_next_hop.get("next_hop") or current_next_hop.get("gateway")
         ip_mask = current_next_hop.get("ip_mask") or current_next_hop.get("destination")
         debug_info.append(f"Hop {hops}: {current_name} -> route {ip_mask} type={route_type} gateway={gateway}")
-        device_path_detail.append({
-            "device": current_name,
-            "firewall_rule": {
-                "incoming_interface": current_source_interface["zone"] if current_source_interface else None,
-                "outgoing_interface": current_next_hop["zone"] if current_source_interface else None,
-                "source": source_device["source"],
-                "destination": destination_list,
-                "service": service_list,
-            },
-            "route_info":{
-                "route": ip_mask,
-                "type": route_type,
-                "gateway": gateway,
-                }
-        })
-            
+        
+        # print(f"############### {current_name} ###############")
+        # print(current_incoming_interface.get("zone", "N/A"))
+        # print(current_next_hop.get("zone", "N/A"))
+        
+        for src in source:
+            current_incoming_interface = find_next_hop(src, routing_table)
+            if current_incoming_interface:
+                current_incoming_interface_key.append(current_incoming_interface.get("zone", "N/A"))
+                current_incoming_interface_list.append({
+                    "incoming_interface": current_incoming_interface.get("zone", "N/A"),
+                    "source": src
+                    })
+        current_incoming_interface_key = list(set(current_incoming_interface_key))
+        
+        for dst in destination_list:
+            current_outgoing_interface = find_next_hop(dst, routing_table)
+            if current_outgoing_interface:
+                current_outgoing_interface_key.append(current_outgoing_interface.get("zone", "N/A"))
+                current_outgoing_interface_list.append({
+                    "outgoing_interface": current_outgoing_interface.get("zone", "N/A"),
+                    "destination": dst
+                    })
+        current_outgoing_interface_key = list(set(current_outgoing_interface_key))
+
+        if current_device.get("device_type") == 'firewall':
+            for iface_in in current_incoming_interface_key:
+                for iface_out in current_outgoing_interface_key:
+                    device_path_detail.append({
+                        "device": current_name,
+                        "firewall_rule": {
+                            "incoming_interface": iface_in,
+                            "outgoing_interface": iface_out,
+                            "source": [entry["source"] for entry in current_incoming_interface_list if entry["incoming_interface"] == iface_in],
+                            "destination": [entry["destination"] for entry in current_outgoing_interface_list if entry["outgoing_interface"] == iface_out],
+                            "service": service_list,
+                        }
+                    })
+                    print(f"incoming_interface: {iface_in},")
+                    print(f"outgoing_interface: {iface_out},")
+                    print(f"source: {[entry["source"] for entry in current_incoming_interface_list if entry["incoming_interface"] == iface_in]},")
+                    print(f"destination: {[entry["destination"] for entry in current_outgoing_interface_list if entry["outgoing_interface"] == iface_out]},")
+                    print(f"service: {service_list},")
         
         if route_type == "connect":
             # Destination is on this device, we're done
@@ -379,4 +418,5 @@ if __name__ == "__main__":
 
     # print(json.dumps(device_path, indent=2))
     module.exit_json(changed=False, result=device_path)
+
 
