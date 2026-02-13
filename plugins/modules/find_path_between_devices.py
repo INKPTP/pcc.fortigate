@@ -3,9 +3,9 @@ from ansible.module_utils.basic import AnsibleModule
 import ipaddress
 import json
 from typing import List, Iterable, Optional, Dict, Any
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, PatternFill
-from datetime import datetime
+# from openpyxl import Workbook
+# from openpyxl.styles import Font, Alignment, PatternFill
+# from datetime import datetime
 
 def get_device_connections(connections, device_name):
     """Get list of connected device names for a specific device"""
@@ -504,7 +504,7 @@ if __name__ == "__main__":
                 fw_rule = rule['firewall_rule']
     
     # Save all paths to Excel
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     all_path_details = []
     for idx, path_info in enumerate(result.get("paths", []), 1):
         for detail in path_info["path_detail"]:
@@ -520,3 +520,4 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=all_path_details)
+
