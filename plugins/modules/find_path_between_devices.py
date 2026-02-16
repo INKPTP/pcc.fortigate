@@ -120,41 +120,6 @@ def _dest_overlaps_route(dest_objects: Iterable[ipaddress._BaseAddress | ipaddre
                 return True
     return False
 
-def _iter_interface_ips(interface: Dict[str, Any]):
-    ip_field = interface.get("ip")
-    if isinstance(ip_field, list):
-        for ip_val in ip_field:
-            if ip_val:
-                yield ip_val
-    elif isinstance(ip_field, str) and ip_field:
-        yield ip_field
-
-def _find_device_by_gateway(gateway: str, all_devices: List[Dict[str, Any]]):
-    for device in all_devices:
-        for interface in device.get("interfaces", []):
-            for ip_val in _iter_interface_ips(interface):
-                # strip possible prefix
-                ip_only = ip_val.split("/")[0]
-                if ip_only == gateway:
-                    return device
-    return None
-
-def _any_dest_in_network(dest_str: str, interface_ip: str, subnet_mask: str) -> bool:
-    """Check if parsed destination overlaps/fits in the interface network."""
-    if not interface_ip or not subnet_mask:
-        return False
-    try:
-        cidr = ipaddress.IPv4Network(f"0.0.0.0/{subnet_mask}").prefixlen
-        interface_net = ipaddress.ip_network(f"{interface_ip}/{cidr}", strict=False)
-        for obj in _parse_destination(dest_str):
-            if isinstance(obj, ipaddress._BaseAddress) and obj in interface_net:
-                return True
-            if isinstance(obj, ipaddress._BaseNetwork) and obj.subnet_of(interface_net):
-                return True
-    except (ValueError, AttributeError):
-        pass
-    return False
-
 def find_next_hop(destination, routing_table):
     """Find best matching route using real router rules:
     1. Longest Prefix Match (LPM) wins
@@ -213,8 +178,8 @@ def find_source_interface(source_ip_list, interfaces):
         try:
             source_network, source_iface = _parse_source(source)
         except ValueError as exc:
-            module.fail_json(msg=str(exc))
-            # pass
+            # module.fail_json(msg=str(exc))
+            pass
         
     for interface in interfaces:
         for interface_network in _interface_networks(interface):
@@ -229,6 +194,159 @@ def find_source_interface(source_ip_list, interfaces):
                 return interface
     return None
 
+def find_source_device(source_list, destination_list, service_list, device_list):
+    matched_device_list = []
+    matched_device_map = {} 
+    temp_destination_ip_list = []
+    for destination_ip in destination_list:
+        try:
+            dest_network, dest_iface = _parse_source(destination_ip)
+            temp_destination_ip_list.append(str(dest_network))
+        except ValueError as exc:
+            pass
+            # module.fail_json(msg=str(exc))
+    destination_ip_list = temp_destination_ip_list
+    
+    for source_ip in source_list:
+        try:
+            source_network, source_iface = _parse_source(source_ip)
+        except ValueError as exc:
+            pass
+            # module.fail_json(msg=str(exc))
+
+        matched_device = None
+
+        for device in device_list:
+            device_name = device.get("device_name") or device.get("name")
+            for interface in device.get("interfaces", []):
+                for interface_network in _interface_networks(interface):
+                    in_same_network = (
+                        (source_iface and source_iface.ip in interface_network)
+                        or (not source_iface and source_network.overlaps(interface_network))
+                    )
+
+                    if in_same_network:
+                        # Create unique key for device+interface
+                        interface_name = interface.get("name") or interface.get("interface")
+                        match_key = f"{device_name}:{interface_name}"
+                        
+                        if match_key in matched_device_map:
+                            # Merge with existing match
+                            existing_match = matched_device_map[match_key]
+                            existing_match["source"].append(str(source_network))
+                            if str(source_network) not in existing_match["source"]:
+                                existing_match["source"] = f"{existing_match['source']}, {source_network}"
+                            matched_device = existing_match
+                        else:
+                            # Create new match
+                            matched_device = {
+                                "device_name": device_name,
+                                "source_device": True,
+                                "source_interface": interface,
+                                "source": [str(source_network)],
+                                "destination": destination_ip_list,
+                                "service": service_list,
+                                "device_info": device,
+                            }
+                            matched_device_map[match_key] = matched_device
+                            matched_device_list.append(matched_device)
+                        break
+                if matched_device:
+                    break
+            if matched_device:
+                break
+
+        if not matched_device:
+            matched_device = {
+                "device_name": None,
+                "source_device": False,
+                "source_interface": None,
+                "source": [str(source_network)],
+                "destination": destination_ip_list,
+                "service": service_list,
+                "device_info": None,
+            }
+            matched_device_list.append(matched_device)
+        
+    return matched_device_list
+
+def summarize_firewall_rules(path_details):
+    """Summarize firewall rules by grouping rules with same device, incoming interface, and outgoing interface.
+    
+    Args:
+        path_details: List of path detail dictionaries
+        
+    Returns:
+        List of summarized path detail dictionaries
+    """
+    summary_map = {}
+    
+    for entry in path_details:
+        device = entry.get("device", "")
+        rule = entry.get("firewall_rule", {})
+        incoming_iface = rule.get("incoming_interface", "")
+        outgoing_iface = rule.get("outgoing_interface", "")
+        
+        # Create unique key for grouping
+        key = f"{device}|{incoming_iface}|{outgoing_iface}"
+        
+        if key in summary_map:
+            # Merge with existing entry
+            existing = summary_map[key]
+            existing_rule = existing["firewall_rule"]
+            
+            # Merge sources (avoid duplicates)
+            for src in rule.get("source", []):
+                if src not in existing_rule["source"]:
+                    existing_rule["source"].append(src)
+            
+            # Merge destinations (avoid duplicates)
+            for dst in rule.get("destination", []):
+                if dst not in existing_rule["destination"]:
+                    existing_rule["destination"].append(dst)
+            
+            # Merge services (avoid duplicates)
+            for svc in rule.get("service", []):
+                if svc not in existing_rule["service"]:
+                    existing_rule["service"].append(svc)
+            
+            # Update path numbers and destinations
+            path_num = entry.get("path_number", "")
+            if path_num and str(path_num) not in str(existing.get("path_number", "")):
+                existing["path_number"] = f"{existing['path_number']}, {path_num}"
+            
+            path_dests = entry.get("path_destinations", "")
+            if path_dests and path_dests not in existing.get("path_destinations", ""):
+                if existing.get("path_destinations"):
+                    existing["path_destinations"] = f"{existing['path_destinations']}; {path_dests}"
+                else:
+                    existing["path_destinations"] = path_dests
+                    
+            source_device = entry.get("source_device", "")
+            if source_device and source_device not in existing.get("source_device", ""):
+                if existing.get("source_device"):
+                    existing["source_device"] = f"{existing['source_device']}, {source_device}"
+                else:
+                    existing["source_device"] = source_device
+        else:
+            # Create new entry (deep copy to avoid modifying original)
+            new_entry = {
+                "device": device,
+                "firewall_rule": {
+                    "incoming_interface": incoming_iface,
+                    "outgoing_interface": outgoing_iface,
+                    "source": rule.get("source", []).copy(),
+                    "destination": rule.get("destination", []).copy(),
+                    "service": rule.get("service", []).copy(),
+                },
+                "path_number": entry.get("path_number", ""),
+                "path_destinations": entry.get("path_destinations", ""),
+                "source_device": entry.get("source_device", ""),
+            }
+            summary_map[key] = new_entry
+    
+    return list(summary_map.values())
+
 def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx"):
     """Save firewall rules to Excel file with formatting."""
     wb = Workbook()
@@ -236,7 +354,7 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     ws.title = "Firewall Rules"
     
     # Define headers
-    headers = ["Path #", "Path Destinations", "Device", "Incoming Interface", "Outgoing Interface", "Source", "Destination", "Service"]
+    headers = ["Path #", "Source Device", "Path Destinations", "Device", "Incoming Interface", "Outgoing Interface", "Source", "Destination", "Service"]
     ws.append(headers)
     
     # Format header row
@@ -251,6 +369,7 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     # Add data rows
     for entry in path_detail:
         path_num = entry.get("path_number", 1)
+        source_device = entry.get("source_device", "")
         path_dests = entry.get("path_destinations", "")
         device = entry.get("device", "")
         rule = entry.get("firewall_rule", {})
@@ -261,10 +380,10 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
         destinations = "\n".join(rule.get("destination", []))
         services = "\n".join(rule.get("service", []))
         
-        ws.append([path_num, path_dests, device, incoming_iface, outgoing_iface, sources, destinations, services])
+        ws.append([path_num, source_device, path_dests, device, incoming_iface, outgoing_iface, sources, destinations, services])
     
     # Adjust column widths and apply text wrapping
-    column_widths = {"A": 10, "B": 25, "C": 20, "D": 20, "E": 20, "F": 25, "G": 25, "H": 20}
+    column_widths = {"A": 10, "B": 20, "C": 25, "D": 20, "E": 20, "F": 20, "G": 25, "H": 25, "I": 20}
     for col, width in column_widths.items():
         ws.column_dimensions[col].width = width
     
@@ -275,7 +394,6 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     
     # Save the workbook
     wb.save(output_file)
-    print(f"Firewall rules saved to: {output_file}")
     return output_file
                 
 def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None):
@@ -464,7 +582,7 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
 if __name__ == "__main__":
     module_args = dict(
         network_topology=dict(type="dict", required=True),
-        source_device=dict(type="dict", required=True),
+        source_list=dict(type="list", required=True),
         destination_list=dict(type="list", required=True), 
         service_list=dict(type="list", required=True), 
         rama6_ftg=dict(type="list", required=True),
@@ -475,20 +593,20 @@ if __name__ == "__main__":
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
     
     network_topology = module.params["network_topology"]
-    source_device = module.params["source_device"]
+    source_list = module.params["source_list"]
     destination_list = module.params["destination_list"]
     service_list = module.params["service_list"]
     rama6_ftg = module.params["rama6_ftg"]
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
     
-    # json_file_path = r"D:\##--Work--##\code\ansible_collection\pcc.fortigate\vars\input2.json"
+    # json_file_path = r"D:\##--Work--##\code\ansible_collection\pcc.fortigate\vars\input3.json"
     
     # with open(json_file_path, 'r', encoding='utf-8') as f:
     #     data = json.load(f)
         
     # network_topology = data["network_topology"]
-    # source_device = data["source_device"]
+    # source_list = data["source_list"]
     # destination_list = data["destination_list"]
     # service_list = data["service_list"]
     # rama6_ftg = data["rama6_ftg"]
@@ -496,28 +614,58 @@ if __name__ == "__main__":
     # pttn_ftg = data["pttn_ftg"]
 
     all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg
-    result = find_device_path(source_device, destination_list, all_devices, network_topology, service_list=service_list)
     
-    for idx, path_info in enumerate(result.get("paths", []), 1):
-        if path_info["path_detail"]:
-            for rule in path_info["path_detail"]:
-                fw_rule = rule['firewall_rule']
+    # Find source device from source_list
+    source_device_list = find_source_device(source_list, destination_list, service_list, all_devices)
+    if not source_device_list:
+        # print("Error: Could not find source device for the given source IPs")
+        # print(f"Source IPs: {source_list}")
+        exit(1)
     
-    # Save all paths to Excel
-    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    source_device_name_list = []
+    for device in source_device_list:
+        device_name = device.get("device_name")
+        if device_name and device_name not in source_device_name_list:
+            source_device_name_list.append(device_name)
+        
+    # print(f"Found source device: {source_device_name_list}")
+    # print(f"Source IPs: {', '.join(source_list)}")
+    # print(f"Destinations: {', '.join(destination_list)}\n")
+    
+    # Process each source device and collect all paths
     all_path_details = []
-    for idx, path_info in enumerate(result.get("paths", []), 1):
-        for detail in path_info["path_detail"]:
-            detail_copy = detail.copy()
-            detail_copy["path_number"] = idx
-            detail_copy["path_destinations"] = ", ".join(path_info.get("destinations", []))
-            all_path_details.append(detail_copy)
+    path_counter = 1
+    
+    for source_device in source_device_list:
+        if source_device.get("device_info") is None:
+            # Skip entries without valid device info
+            continue
+            
+        device_name = source_device.get("device_name")
+        # print(f"Processing paths from source device: {device_name}")
+        
+        result = find_device_path(source_device, destination_list, all_devices, network_topology, service_list=service_list)
+        
+        # Collect path details from this source device
+        for path_info in result.get("paths", []):
+            for detail in path_info["path_detail"]:
+                detail_copy = detail.copy()
+                detail_copy["path_number"] = path_counter
+                detail_copy["path_destinations"] = ", ".join(path_info.get("destinations", []))
+                detail_copy["source_device"] = device_name
+                all_path_details.append(detail_copy)
+            path_counter += 1
+    
+    # # Save all paths to Excel
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # if all_path_details:
+    #     # Summarize firewall rules
+    #     summarized_rules = summarize_firewall_rules(all_path_details)
+        
     #     output_file = rf"D:\##--Work--##\code\ansible_collection\pcc.fortigate\plugins\modules\firewall_rules_{timestamp}.xlsx"
-    #     save_firewall_rules_to_excel(all_path_details, output_file)
+    #     save_firewall_rules_to_excel(summarized_rules, output_file)
     # else:
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=all_path_details)
-
