@@ -527,9 +527,19 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
             
             connected_device_names = get_device_connections(connections, current_name)
             if not connected_device_names:
+                # No connected devices found - destination is out of scope
+                # Record firewall rule and mark path as completed
+                all_paths.append({
+                    "path": current_path.copy(),
+                    "path_detail": new_path_detail,
+                    "destinations": dests_in_group,
+                    "hops": depth,
+                    "status": "out_of_scope"
+                })
                 continue
             
             # Find next device with matching gateway IP
+            next_device_found = False
             for device_name in connected_device_names:
                 if device_name in visited or len(all_paths) >= max_paths:
                     continue
@@ -568,7 +578,19 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
                 
                 explore_path(next_device, device_name, dests_in_group, new_path, 
                            new_path_detail, new_visited, depth + 1)
+                next_device_found = True
                 break  # Found the next device for this gateway
+
+            # If no next device found, destination is out of scope
+            # Record firewall rule with outgoing interface and mark as completed
+            if not next_device_found:
+                all_paths.append({
+                    "path": current_path.copy(),
+                    "path_detail": new_path_detail,
+                    "destinations": dests_in_group,
+                    "hops": depth,
+                    "status": "out_of_scope"
+                })
     
     # Start exploration from source device
     initial_visited = {start_name}
@@ -675,4 +697,5 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=all_path_details)
+
 
