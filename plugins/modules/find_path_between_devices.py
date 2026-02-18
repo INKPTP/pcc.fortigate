@@ -396,7 +396,7 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     wb.save(output_file)
     return output_file
                 
-def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None):
+def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
     """Find multiple firewall paths from source device to destination IPs.
     
     Args:
@@ -504,6 +504,8 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
                                     "destination": [entry["destination"] for entry in current_outgoing_interface_list 
                                                   if entry["outgoing_interface"] == iface_out],
                                     "service": service_list,
+                                    "schedule": schedule,
+                                    "action": action
                                 }
                             })
             
@@ -582,9 +584,11 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
 if __name__ == "__main__":
     module_args = dict(
         network_topology=dict(type="dict", required=True),
-        source_list=dict(type="list", required=True),
-        destination_list=dict(type="list", required=True), 
-        service_list=dict(type="list", required=True), 
+        rule_source_list=dict(type="list", required=True),
+        rule_destination_list=dict(type="list", required=True), 
+        rule_service_list=dict(type="list", required=True),
+        rule_schedule=dict(type="dict", required=True),
+        rule_action=dict(type="str", required=True),
         rama6_ftg=dict(type="list", required=True),
         rama6_core_switch=dict(type="dict", required=True),
         pttn_ftg=dict(type="list", required=True),
@@ -593,9 +597,11 @@ if __name__ == "__main__":
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
     
     network_topology = module.params["network_topology"]
-    source_list = module.params["source_list"]
-    destination_list = module.params["destination_list"]
-    service_list = module.params["service_list"]
+    source_list = module.params["rule_source_list"]
+    destination_list = module.params["rule_destination_list"]
+    service_list = module.params["rule_service_list"]
+    schedule = module.params["rule_schedule"]
+    action = module.params["rule_action"]
     rama6_ftg = module.params["rama6_ftg"]
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
@@ -644,7 +650,7 @@ if __name__ == "__main__":
         device_name = source_device.get("device_name")
         # print(f"Processing paths from source device: {device_name}")
         
-        result = find_device_path(source_device, destination_list, all_devices, network_topology, service_list=service_list)
+        result = find_device_path(source_device, destination_list, all_devices, network_topology, service_list=service_list, schedule=schedule, action=action)
         
         # Collect path details from this source device
         for path_info in result.get("paths", []):
@@ -669,3 +675,4 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=all_path_details)
+
