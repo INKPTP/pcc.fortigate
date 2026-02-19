@@ -216,6 +216,7 @@ def find_source_device(source_list, destination_list, service_list, device_list)
 
         matched_device = None
 
+        # First pass: check if source is directly on a device interface
         for device in device_list:
             device_name = device.get("device_name") or device.get("name")
             for interface in device.get("interfaces", []):
@@ -247,6 +248,7 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                                 "destination": destination_ip_list,
                                 "service": service_list,
                                 "device_info": device,
+                                "source_behind_device": False,
                             }
                             matched_device_map[match_key] = matched_device
                             matched_device_list.append(matched_device)
@@ -255,6 +257,99 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                     break
             if matched_device:
                 break
+
+        # Second pass: if source not directly connected, trace routing to find entry device
+        if not matched_device:
+            # Find all devices that have a route to the source network
+            devices_with_route = []
+            
+            for device in device_list:
+                device_name = device.get("device_name") or device.get("name")
+                routing_table = device.get("routing_table", [])
+                
+                # Check if this device has a route to the source network
+                source_route = find_next_hop(source_ip, routing_table)
+                if source_route:
+                    route_type = source_route.get("type", "").lower()
+                    gateway = source_route.get("next_hop") or source_route.get("gateway")
+                    zone = source_route.get("zone", "N/A")
+                    
+                    devices_with_route.append({
+                        "device": device,
+                        "device_name": device_name,
+                        "route": source_route,
+                        "gateway": gateway,
+                        "zone": zone,
+                        "route_type": route_type
+                    })
+            
+            # Find the last device before traffic goes out of scope
+            # This is the device whose next hop for the source is NOT in our device list
+            entry_device = None
+            
+            for dev_info in devices_with_route:
+                device_name = dev_info["device_name"]
+                gateway = dev_info["gateway"]
+                route_type = dev_info["route_type"]
+                
+                # If route type is connect, skip (source is directly connected, should have been caught in first pass)
+                if route_type == "connect":
+                    continue
+                
+                # Check if the gateway is on any other device in our list
+                gateway_on_tracked_device = False
+                
+                if gateway and gateway != "0.0.0.0":
+                    for other_device in device_list:
+                        if other_device.get("device_name") == device_name:
+                            continue  # Skip self
+                        
+                        # Check if gateway IP is on this other device's interfaces
+                        for interface in other_device.get("interfaces", []):
+                            interface_ip = interface.get("ip")
+                            if interface_ip:
+                                ip_list = [interface_ip] if isinstance(interface_ip, str) else interface_ip
+                                for ip_val in ip_list:
+                                    if ip_val and ip_val.split("/")[0] == gateway:
+                                        gateway_on_tracked_device = True
+                                        break
+                            if gateway_on_tracked_device:
+                                break
+                        if gateway_on_tracked_device:
+                            break
+                
+                # If gateway is NOT on any tracked device, this is our entry device
+                if not gateway_on_tracked_device:
+                    entry_device = dev_info
+                    break
+            
+            # Use the entry device as source device
+            if entry_device:
+                device_name = entry_device["device_name"]
+                zone = entry_device["zone"]
+                match_key = f"{device_name}:routing:{zone}"
+                
+                if match_key in matched_device_map:
+                    # Merge with existing match
+                    existing_match = matched_device_map[match_key]
+                    if str(source_network) not in existing_match["source"]:
+                        existing_match["source"].append(str(source_network))
+                    matched_device = existing_match
+                else:
+                    # Create new match for source behind device
+                    matched_device = {
+                        "device_name": device_name,
+                        "source_device": True,
+                        "source_interface": None,  # Not directly connected
+                        "source": [str(source_network)],
+                        "destination": destination_ip_list,
+                        "service": service_list,
+                        "device_info": entry_device["device"],
+                        "source_behind_device": True,
+                        "source_zone": zone,
+                    }
+                    matched_device_map[match_key] = matched_device
+                    matched_device_list.append(matched_device)
 
         if not matched_device:
             matched_device = {
@@ -265,6 +360,7 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                 "destination": destination_ip_list,
                 "service": service_list,
                 "device_info": None,
+                "source_behind_device": False,
             }
             matched_device_list.append(matched_device)
         
@@ -396,7 +492,7 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     wb.save(output_file)
     return output_file
                 
-def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
+def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None):
     """Find multiple firewall paths from source device to destination IPs.
     
     Args:
@@ -456,15 +552,31 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
         current_incoming_interface_key = []
         current_incoming_interface_list = []
         
-        for src in source:
-            src_route = find_next_hop(src, routing_table)
-            if src_route:
-                zone = src_route.get("zone", "N/A")
-                current_incoming_interface_key.append(zone)
+        # Check if source is behind the device (not directly connected)
+        # This logic should only apply to the first device (start device)
+        source_behind_device = source_device.get("source_behind_device", False)
+        is_start_device = (current_name == start_name)
+        
+        if source_behind_device and is_start_device:
+            # Use the zone from routing table for sources behind the device (first hop only)
+            source_zone = source_device.get("source_zone", "N/A")
+            for src in source:
+                current_incoming_interface_key.append(source_zone)
                 current_incoming_interface_list.append({
-                    "incoming_interface": zone,
+                    "incoming_interface": source_zone,
                     "source": src
                 })
+        else:
+            # For all other cases: look up source route in current device's routing table
+            for src in source:
+                src_route = find_next_hop(src, routing_table)
+                if src_route:
+                    zone = src_route.get("zone", "N/A")
+                    current_incoming_interface_key.append(zone)
+                    current_incoming_interface_list.append({
+                        "incoming_interface": zone,
+                        "source": src
+                    })
         current_incoming_interface_key = list(set(current_incoming_interface_key))
         
         # Process each next hop group (creates branches if multiple next hops)
@@ -504,8 +616,6 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
                                     "destination": [entry["destination"] for entry in current_outgoing_interface_list 
                                                   if entry["outgoing_interface"] == iface_out],
                                     "service": service_list,
-                                    "schedule": schedule,
-                                    "action": action
                                 }
                             })
             
@@ -580,7 +690,7 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
                            new_path_detail, new_visited, depth + 1)
                 next_device_found = True
                 break  # Found the next device for this gateway
-
+            
             # If no next device found, destination is out of scope
             # Record firewall rule with outgoing interface and mark as completed
             if not next_device_found:
@@ -697,5 +807,6 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=all_path_details)
+
 
 
