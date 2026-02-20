@@ -794,6 +794,11 @@ if __name__ == "__main__":
                 all_path_details.append(detail_copy)
             path_counter += 1
     
+    if all_path_details:
+        summarized_rules = summarize_firewall_rules(all_path_details)
+    else:
+        print("\nNo firewall rules to save.")
+    
     # # Save all paths to Excel
     # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
@@ -806,7 +811,8 @@ if __name__ == "__main__":
     # else:
     #     print("\nNo firewall rules to save.")
     
-    module.exit_json(changed=False, result=all_path_details)
+    module.exit_json(changed=False, result=summarized_rules)
+
 
 
 
