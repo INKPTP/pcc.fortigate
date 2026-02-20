@@ -613,6 +613,9 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
                                 "device": current_name,
                                 "firewall_rule": {
                                     "name": rule_name,
+                                    "site": current_device.get("site"),
+                                    "vdom": current_device.get("vdom"),
+                                    "device_ip_address": current_device.get("device_ip_address"),
                                     "incoming_interface": iface_in,
                                     "outgoing_interface": iface_out,
                                     "source": [entry["source"] for entry in current_incoming_interface_list 
@@ -818,6 +821,7 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=summarized_rules)
+
 
 
 
