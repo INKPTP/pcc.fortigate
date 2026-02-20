@@ -720,7 +720,7 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
 if __name__ == "__main__":
     module_args = dict(
         network_topology=dict(type="dict", required=True),
-        rule_cr_id=dict(type="str", required=True)
+        rule_cr_id=dict(type="str", required=True),
         rule_source_list=dict(type="list", required=True),
         rule_destination_list=dict(type="list", required=True), 
         rule_service_list=dict(type="list", required=True),
@@ -818,6 +818,7 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=summarized_rules)
+
 
 
 
