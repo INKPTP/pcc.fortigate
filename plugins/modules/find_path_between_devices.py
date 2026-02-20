@@ -429,6 +429,7 @@ def summarize_firewall_rules(path_details):
             new_entry = {
                 "device": device,
                 "firewall_rule": {
+                    "name": rule.get("name", ""),
                     "incoming_interface": incoming_iface,
                     "outgoing_interface": outgoing_iface,
                     "source": rule.get("source", []).copy(),
@@ -494,7 +495,7 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     wb.save(output_file)
     return output_file
                 
-def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
+def find_device_path(rule_name, source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
     """Find multiple firewall paths from source device to destination IPs.
     
     Args:
@@ -611,6 +612,7 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
                             new_path_detail.append({
                                 "device": current_name,
                                 "firewall_rule": {
+                                    "name": rule_name
                                     "incoming_interface": iface_in,
                                     "outgoing_interface": iface_out,
                                     "source": [entry["source"] for entry in current_incoming_interface_list 
@@ -718,6 +720,7 @@ def find_device_path(source_device, destination_list, all_devices, connections, 
 if __name__ == "__main__":
     module_args = dict(
         network_topology=dict(type="dict", required=True),
+        rule_cr_id=dict(type="str", required=True)
         rule_source_list=dict(type="list", required=True),
         rule_destination_list=dict(type="list", required=True), 
         rule_service_list=dict(type="list", required=True),
@@ -731,6 +734,7 @@ if __name__ == "__main__":
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
     
     network_topology = module.params["network_topology"]
+    rule_name = module.params["rule_cr_id"]
     source_list = module.params["rule_source_list"]
     destination_list = module.params["rule_destination_list"]
     service_list = module.params["rule_service_list"]
@@ -784,7 +788,7 @@ if __name__ == "__main__":
         device_name = source_device.get("device_name")
         # print(f"Processing paths from source device: {device_name}")
         
-        result = find_device_path(source_device, destination_list, all_devices, network_topology, service_list=service_list, schedule=schedule, action=action)
+        result = find_device_path(rule_name, source_device, destination_list, all_devices, network_topology, service_list=service_list, schedule=schedule, action=action)
         
         # Collect path details from this source device
         for path_info in result.get("paths", []):
@@ -814,6 +818,7 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=summarized_rules)
+
 
 
 
