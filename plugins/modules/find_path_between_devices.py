@@ -379,6 +379,9 @@ def summarize_firewall_rules(path_details):
     
     for entry in path_details:
         device = entry.get("device", "")
+        site = entry.get("site", "")
+        vdom = entry.get("vdom", "")
+        device_ip_address = entry.get("device_ip_address", "")
         rule = entry.get("firewall_rule", {})
         incoming_iface = rule.get("incoming_interface", "")
         outgoing_iface = rule.get("outgoing_interface", "")
@@ -428,6 +431,9 @@ def summarize_firewall_rules(path_details):
             # Create new entry (deep copy to avoid modifying original)
             new_entry = {
                 "device": device,
+                "site": site,
+                "vdom": vdom,
+                "device_ip_address": device_ip_address,
                 "firewall_rule": {
                     "name": rule.get("name", ""),
                     "incoming_interface": incoming_iface,
@@ -611,11 +617,11 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
                         if iface_in != iface_out:
                             new_path_detail.append({
                                 "device": current_name,
+                                "site": current_device.get("site"),
+                                "vdom": current_device.get("vdom"),
+                                "device_ip_address": current_device.get("device_ip_address"),
                                 "firewall_rule": {
                                     "name": rule_name,
-                                    "site": current_device.get("site"),
-                                    "vdom": current_device.get("vdom"),
-                                    "device_ip_address": current_device.get("device_ip_address"),
                                     "incoming_interface": iface_in,
                                     "outgoing_interface": iface_out,
                                     "source": [entry["source"] for entry in current_incoming_interface_list 
@@ -821,6 +827,7 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=summarized_rules)
+
 
 
 
