@@ -434,8 +434,8 @@ def summarize_firewall_rules(path_details):
                     "source": rule.get("source", []).copy(),
                     "destination": rule.get("destination", []).copy(),
                     "service": rule.get("service", []).copy(),
-                    "schedule": rule.get("schedule", {}).copy(),
-                    "action": rule.get("action", "").copy(),
+                    "schedule": rule.get("schedule", {}),
+                    "action": rule.get("action", ""),
                 },
                 "path_number": entry.get("path_number", ""),
                 "path_destinations": entry.get("path_destinations", ""),
@@ -814,6 +814,7 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=summarized_rules)
+
 
 
 
