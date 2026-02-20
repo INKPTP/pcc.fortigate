@@ -492,7 +492,7 @@ def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx")
     wb.save(output_file)
     return output_file
                 
-def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None):
+def find_device_path(source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
     """Find multiple firewall paths from source device to destination IPs.
     
     Args:
@@ -807,6 +807,7 @@ if __name__ == "__main__":
     #     print("\nNo firewall rules to save.")
     
     module.exit_json(changed=False, result=all_path_details)
+
 
 
 
