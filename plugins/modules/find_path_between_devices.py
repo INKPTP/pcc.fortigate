@@ -2,10 +2,93 @@ from __future__ import annotations
 from ansible.module_utils.basic import AnsibleModule
 import ipaddress
 import json
+import re
 from typing import List, Iterable, Optional, Dict, Any
 # from openpyxl import Workbook
 # from openpyxl.styles import Font, Alignment, PatternFill
 # from datetime import datetime
+
+def convert_ip_to_object(ip_string: str) -> dict:
+    """Convert IP string to detailed object format with type, ipaddress, subnet, cidr, start_ip, end_ip, fqdn."""
+    ip_string = ip_string.strip()
+    
+    # Check if it's a FQDN (contains letters, wildcards, or domain-like patterns)
+    # FQDN should have at least one alphabetic character or asterisk
+    if re.search(r'[a-zA-Z*]', ip_string) and not re.match(r'^[\d\.\/\-\s]+$', ip_string):
+        return {
+            "type": "fqdn",
+            "ipaddress": "",
+            "subnet": "0.0.0.0 0.0.0.0",
+            "cidr": 0,
+            "start_ip": "0.0.0.0",
+            "end_ip": "0.0.0.0",
+            "fqdn": ip_string
+        }
+    
+    # Check if it's an IP range (contains -)
+    if "-" in ip_string and not any(char.isalpha() for char in ip_string):
+        parts = ip_string.split("-")
+        start_ip = parts[0].strip()
+        end_ip = parts[1].strip()
+        return {
+            "type": "iprange",
+            "ipaddress": f"{start_ip} {end_ip}",
+            "subnet": "",
+            "cidr": 0,
+            "start_ip": start_ip,
+            "end_ip": end_ip,
+            "fqdn": ""
+        }
+    
+    # Check if it's a CIDR notation (contains /)
+    if "/" in ip_string:
+        try:
+            network = ipaddress.ip_network(ip_string, strict=False)
+            ip_addr = str(network.network_address)
+            prefix_len = network.prefixlen
+            netmask = str(network.netmask)
+            
+            # Calculate start and end IP
+            start_ip = str(network.network_address)
+            end_ip = str(network.broadcast_address)
+            
+            return {
+                "type": "ipmask",
+                "ipaddress": ip_addr,
+                "subnet": netmask,
+                "cidr": prefix_len,
+                "start_ip": start_ip,
+                "end_ip": end_ip,
+                "fqdn": ""
+            }
+        except ValueError:
+            # Fallback to single IP if parsing fails
+            pass
+    
+    # Single IP address (default)
+    return {
+        "type": "ipmask",
+        "ipaddress": ip_string,
+        "subnet": "255.255.255.255",
+        "cidr": 32,
+        "start_ip": ip_string,
+        "end_ip": ip_string,
+        "fqdn": ""
+    }
+
+def ip_objects_equal(obj1: dict, obj2: dict) -> bool:
+    """Check if two IP objects represent the same IP/range/FQDN."""
+    if obj1.get("type") != obj2.get("type"):
+        return False
+    
+    if obj1.get("type") == "fqdn":
+        return obj1.get("fqdn") == obj2.get("fqdn")
+    elif obj1.get("type") == "iprange":
+        return (obj1.get("start_ip") == obj2.get("start_ip") and 
+                obj1.get("end_ip") == obj2.get("end_ip"))
+    else:  # ipmask
+        return (obj1.get("ipaddress") == obj2.get("ipaddress") and 
+                obj1.get("cidr") == obj2.get("cidr"))
 
 def get_device_connections(connections, device_name):
     """Get list of connected device names for a specific device"""
@@ -233,18 +316,21 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                         
                         if match_key in matched_device_map:
                             # Merge with existing match
+                            # Preserve IP range format if input is a range, otherwise use CIDR
+                            source_value = source_ip if "-" in source_ip else str(source_network)
                             existing_match = matched_device_map[match_key]
-                            existing_match["source"].append(str(source_network))
-                            if str(source_network) not in existing_match["source"]:
-                                existing_match["source"] = f"{existing_match['source']}, {source_network}"
+                            if source_value not in existing_match["source"]:
+                                existing_match["source"].append(source_value)
                             matched_device = existing_match
                         else:
                             # Create new match
+                            # Preserve IP range format if input is a range, otherwise use CIDR
+                            source_value = source_ip if "-" in source_ip else str(source_network)
                             matched_device = {
                                 "device_name": device_name,
                                 "source_device": True,
                                 "source_interface": interface,
-                                "source": [str(source_network)],
+                                "source": [source_value],
                                 "destination": destination_ip_list,
                                 "service": service_list,
                                 "device_info": device,
@@ -331,17 +417,21 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                 
                 if match_key in matched_device_map:
                     # Merge with existing match
+                    # Preserve IP range format if input is a range, otherwise use CIDR
+                    source_value = source_ip if "-" in source_ip else str(source_network)
                     existing_match = matched_device_map[match_key]
-                    if str(source_network) not in existing_match["source"]:
-                        existing_match["source"].append(str(source_network))
+                    if source_value not in existing_match["source"]:
+                        existing_match["source"].append(source_value)
                     matched_device = existing_match
                 else:
                     # Create new match for source behind device
+                    # Preserve IP range format if input is a range, otherwise use CIDR
+                    source_value = source_ip if "-" in source_ip else str(source_network)
                     matched_device = {
                         "device_name": device_name,
                         "source_device": True,
                         "source_interface": None,  # Not directly connected
-                        "source": [str(source_network)],
+                        "source": [source_value],
                         "destination": destination_ip_list,
                         "service": service_list,
                         "device_info": entry_device["device"],
@@ -352,11 +442,13 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                     matched_device_list.append(matched_device)
 
         if not matched_device:
+            # Preserve IP range format if input is a range, otherwise use CIDR
+            source_value = source_ip if "-" in source_ip else str(source_network)
             matched_device = {
                 "device_name": None,
                 "source_device": False,
                 "source_interface": None,
-                "source": [str(source_network)],
+                "source": [source_value],
                 "destination": destination_ip_list,
                 "service": service_list,
                 "device_info": None,
@@ -394,14 +486,14 @@ def summarize_firewall_rules(path_details):
             existing = summary_map[key]
             existing_rule = existing["firewall_rule"]
             
-            # Merge sources (avoid duplicates)
+            # Merge sources (avoid duplicates by comparing IP objects)
             for src in rule.get("source", []):
-                if src not in existing_rule["source"]:
+                if not any(ip_objects_equal(src, existing_src) for existing_src in existing_rule["source"]):
                     existing_rule["source"].append(src)
             
-            # Merge destinations (avoid duplicates)
+            # Merge destinations (avoid duplicates by comparing IP objects)
             for dst in rule.get("destination", []):
-                if dst not in existing_rule["destination"]:
+                if not any(ip_objects_equal(dst, existing_dst) for existing_dst in existing_rule["destination"]):
                     existing_rule["destination"].append(dst)
             
             # Merge services (avoid duplicates)
@@ -452,55 +544,40 @@ def summarize_firewall_rules(path_details):
     
     return list(summary_map.values())
 
-def save_firewall_rules_to_excel(path_detail, output_file="firewall_rules.xlsx"):
-    """Save firewall rules to Excel file with formatting."""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Firewall Rules"
+def retrive_vpn_user_ip_mapping(vpn_user_roles, vpn_ip_pools, source_list):
+    ip_pool_list = []
     
-    # Define headers
-    headers = ["Path #", "Source Device", "Path Destinations", "Device", "Incoming Interface", "Outgoing Interface", "Source", "Destination", "Service"]
-    ws.append(headers)
-    
-    # Format header row
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF")
-    
-    for cell in ws[1]:
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    
-    # Add data rows
-    for entry in path_detail:
-        path_num = entry.get("path_number", 1)
-        source_device = entry.get("source_device", "")
-        path_dests = entry.get("path_destinations", "")
-        device = entry.get("device", "")
-        rule = entry.get("firewall_rule", {})
+    for source in source_list:
+        for rule in vpn_user_roles:
+            if source in rule['conditions']:
+                current_assign_role = rule['assigned_role']
+                current_user_list = rule['conditions']
+                # break
         
-        incoming_iface = rule.get("incoming_interface", "")
-        outgoing_iface = rule.get("outgoing_interface", "")
-        sources = "\n".join(rule.get("source", []))
-        destinations = "\n".join(rule.get("destination", []))
-        services = "\n".join(rule.get("service", []))
+        for pool in vpn_ip_pools:
+            for role in pool['applies_to_roles']:
+                if role == current_assign_role:
+                    current_ip_pool = {
+                        "pool_name": pool['profile_name'],
+                        "ipv4_addresses": pool['ipv4_addresses'],
+                        "applies_to_roles": pool['applies_to_roles'],
+                        "conditions": current_user_list
+                    }
+                    ip_pool_list.append(current_ip_pool)
+                    break
         
-        ws.append([path_num, source_device, path_dests, device, incoming_iface, outgoing_iface, sources, destinations, services])
-    
-    # Adjust column widths and apply text wrapping
-    column_widths = {"A": 10, "B": 20, "C": 25, "D": 20, "E": 20, "F": 20, "G": 25, "H": 25, "I": 20}
-    for col, width in column_widths.items():
-        ws.column_dimensions[col].width = width
-    
-    # Apply text wrapping and alignment to data cells
-    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-        for cell in row:
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
-    
-    # Save the workbook
-    wb.save(output_file)
-    return output_file
-                
+    unique_pool_list = []
+    unique_ip_pool_list = []
+    for item in ip_pool_list:
+        if item not in unique_pool_list:
+            unique_pool_list.append(item)
+    for item in unique_pool_list:
+        for ip in item['ipv4_addresses']:
+            if ip not in unique_ip_pool_list:
+                unique_ip_pool_list.append(ip)
+            
+    return unique_ip_pool_list 
+         
 def find_device_path(rule_name, source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
     """Find multiple firewall paths from source device to destination IPs.
     
@@ -615,6 +692,20 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
                 for iface_in in current_incoming_interface_key:
                     for iface_out in current_outgoing_interface_key:
                         if iface_in != iface_out:
+                            # Convert source IPs to detailed objects
+                            source_objects = [
+                                convert_ip_to_object(entry["source"]) 
+                                for entry in current_incoming_interface_list 
+                                if entry["incoming_interface"] == iface_in
+                            ]
+                            
+                            # Convert destination IPs to detailed objects
+                            destination_objects = [
+                                convert_ip_to_object(entry["destination"]) 
+                                for entry in current_outgoing_interface_list 
+                                if entry["outgoing_interface"] == iface_out
+                            ]
+                            
                             new_path_detail.append({
                                 "device": current_name,
                                 "site": current_device.get("site"),
@@ -624,11 +715,11 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
                                     "name": rule_name,
                                     "incoming_interface": iface_in,
                                     "outgoing_interface": iface_out,
-                                    "source": [entry["source"] for entry in current_incoming_interface_list 
-                                             if entry["incoming_interface"] == iface_in],
-                                    "destination": [entry["destination"] for entry in current_outgoing_interface_list 
-                                                  if entry["outgoing_interface"] == iface_out],
+                                    "source": source_objects,
+                                    "destination": destination_objects,
                                     "service": service_list,
+                                    "schedule": schedule if schedule else {},
+                                    "action": action if action else "",
                                 }
                             })
             
@@ -738,6 +829,8 @@ if __name__ == "__main__":
         rama6_ftg=dict(type="list", required=True),
         rama6_core_switch=dict(type="dict", required=True),
         pttn_ftg=dict(type="list", required=True),
+        vpn_user_role=dict(type="list", required=True),
+        vpn_ip_pool=dict(type="list", required=True)
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -752,27 +845,21 @@ if __name__ == "__main__":
     rama6_ftg = module.params["rama6_ftg"]
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
-    
-    # json_file_path = r"D:\##--Work--##\code\ansible_collection\pcc.fortigate\vars\input3.json"
-    
-    # with open(json_file_path, 'r', encoding='utf-8') as f:
-    #     data = json.load(f)
-        
-    # network_topology = data["network_topology"]
-    # source_list = data["source_list"]
-    # destination_list = data["destination_list"]
-    # service_list = data["service_list"]
-    # rama6_ftg = data["rama6_ftg"]
-    # rama6_core_switch = data["rama6_core_switch"]
-    # pttn_ftg = data["pttn_ftg"]
+    vpn_user_role = module.params["vpn_user_role"]
+    vpn_ip_pool = module.params["vpn_ip_pool"]
 
     all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg
+    
+    # check if source_list contains IP addresses or usernames, and retrieve VPN user IP mapping if needed
+    for item in source_list:
+        try:
+            ipaddress.ip_network(item, strict=False)
+        except ValueError:
+            source_list = retrive_vpn_user_ip_mapping(vpn_user_role, vpn_ip_pool, source_list)
     
     # Find source device from source_list
     source_device_list = find_source_device(source_list, destination_list, service_list, all_devices)
     if not source_device_list:
-        # print("Error: Could not find source device for the given source IPs")
-        # print(f"Source IPs: {source_list}")
         exit(1)
     
     source_device_name_list = []
@@ -780,10 +867,6 @@ if __name__ == "__main__":
         device_name = device.get("device_name")
         if device_name and device_name not in source_device_name_list:
             source_device_name_list.append(device_name)
-        
-    # print(f"Found source device: {source_device_name_list}")
-    # print(f"Source IPs: {', '.join(source_list)}")
-    # print(f"Destinations: {', '.join(destination_list)}\n")
     
     # Process each source device and collect all paths
     all_path_details = []
@@ -813,29 +896,5 @@ if __name__ == "__main__":
         summarized_rules = summarize_firewall_rules(all_path_details)
     else:
         print("\nNo firewall rules to save.")
-    
-    # # Save all paths to Excel
-    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # if all_path_details:
-    #     # Summarize firewall rules
-    #     summarized_rules = summarize_firewall_rules(all_path_details)
         
-    #     output_file = rf"D:\##--Work--##\code\ansible_collection\pcc.fortigate\plugins\modules\firewall_rules_{timestamp}.xlsx"
-    #     save_firewall_rules_to_excel(summarized_rules, output_file)
-    # else:
-    #     print("\nNo firewall rules to save.")
-    
     module.exit_json(changed=False, result=summarized_rules)
-
-
-
-
-
-
-
-
-
-
-
-

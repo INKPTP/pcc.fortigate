@@ -1,0 +1,9 @@
+- name: "Include tasks : retrive schedule"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/schedule.yml
+  when: "'schedule' in action_tasks"
+
+- name: "Include tasks : retrive service"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/service.yml
+  when: "'service' in action_tasks"

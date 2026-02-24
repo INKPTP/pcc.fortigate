@@ -1,0 +1,67 @@
+---
+# Sample playbook demonstrating the use of generate_schedule_name module
+
+- name: Test generate_schedule_name module
+  hosts: localhost
+  gather_facts: no
+  
+  tasks:
+    - name: Generate schedule name for single day
+      pcc.fortigate.generate_schedule_name:
+        start_date: "2026-02-22"
+        end_date: "2026-02-22"
+      register: result_single_day
+    
+    - name: Display result for single day
+      ansible.builtin.debug:
+        msg: "Single day schedule: {{ result_single_day.schedule_name }}"
+    
+    - name: Generate schedule name for whole month
+      pcc.fortigate.generate_schedule_name:
+        start_date: "2026-03-01"
+        end_date: "2026-03-31"
+      register: result_whole_month
+    
+    - name: Display result for whole month
+      ansible.builtin.debug:
+        msg: "Whole month schedule: {{ result_whole_month.schedule_name }}"
+    
+    - name: Generate schedule name for date range
+      pcc.fortigate.generate_schedule_name:
+        start_date: "2026-02-15"
+        end_date: "2026-03-20"
+      register: result_date_range
+    
+    - name: Display result for date range
+      ansible.builtin.debug:
+        msg: "Date range schedule: {{ result_date_range.schedule_name }}"
+    
+    - name: Generate schedule name for multi-month range
+      pcc.fortigate.generate_schedule_name:
+        start_date: "2026-02-01"
+        end_date: "2026-03-31"
+      register: result_multi_month
+    
+    - name: Display result for multi-month range
+      ansible.builtin.debug:
+        msg: "Multi-month schedule: {{ result_multi_month.schedule_name }}"
+    
+    - name: Generate schedule name for always (empty dates)
+      pcc.fortigate.generate_schedule_name:
+        start_date: ""
+        end_date: ""
+      register: result_always
+    
+    - name: Display result for always
+      ansible.builtin.debug:
+        msg: "Always schedule: {{ result_always.schedule_name }}"
+    
+    - name: Summary of all generated schedule names
+      ansible.builtin.debug:
+        msg: 
+          - "=== Schedule Name Generation Summary ==="
+          - "Single day (2026-02-22 to 2026-02-22): {{ result_single_day.schedule_name }}"
+          - "Whole month (2026-03-01 to 2026-03-31): {{ result_whole_month.schedule_name }}"
+          - "Date range (2026-02-15 to 2026-03-20): {{ result_date_range.schedule_name }}"
+          - "Multi-month (2026-02-01 to 2026-03-31): {{ result_multi_month.schedule_name }}"
+          - "Always (empty dates): {{ result_always.schedule_name }}"

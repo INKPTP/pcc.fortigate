@@ -1,0 +1,66 @@
+- name: "Ansible uri : GET ipmask object - {{ rule_item.ipaddress }} {{ rule_item.subnet }}"
+  ansible.builtin.uri:
+    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}&filter=subnet=={{ rule_item.ipaddress }}%20{{ rule_item.subnet }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: existing_ipmask_address
+
+- name: "Append ipmask object name into srcaddr"
+  ansible.builtin.set_fact:
+    srcaddr: "{{ srcaddr + [{'name': existing_ipmask_address.json.results[0].name}] }}"
+  when: 
+    - "'source' in action_tasks" 
+    - existing_ipmask_address.json.results != []
+
+- name: "Append ipmask object name into dstaddr"
+  ansible.builtin.set_fact:
+    dstaddr: "{{ dstaddr + [{'name': existing_ipmask_address.json.results[0].name}] }}"
+  when: 
+    - "'destination' in action_tasks" 
+    - existing_ipmask_address.json.results != []
+
+- name: "Ansible uri : POST create ipmask object - {{ rule_item.ipaddress }} {{ rule_item.subnet }}"
+  ansible.builtin.uri:
+    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+    body_format: json
+    body:
+      json:    
+        name: "{{ rule_item.ipaddress }}"
+        type: "ipmask"
+        subnet: "{{ rule_item.ipaddress }} {{ rule_item.subnet }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: new_ipmask_address_response
+  when: 
+    - existing_ipmask_address.json.results == []
+
+- name: "Append new ipmask object name into srcaddr"
+  ansible.builtin.set_fact:
+    srcaddr: "{{ srcaddr + [{'name': rule_item.ipaddress}] }}"
+  when: 
+    - "'source' in action_tasks" 
+    - existing_ipmask_address.json.results == []
+    - new_ipmask_address_response.status == 200
+
+- name: "Append new ipmask object name into dstaddr"
+  ansible.builtin.set_fact:
+    dstaddr: "{{ dstaddr + [{'name': rule_item.ipaddress}] }}"
+  when: 
+    - "'destination' in action_tasks" 
+    - existing_ipmask_address.json.results == []
+    - new_ipmask_address_response.status == 200
+
+- name: "Stop workflow if failed to create ipmask object - {{ rule_item.ipaddress }} {{ rule_item.subnet }}"
+  ansible.builtin.fail:
+    msg: "Failed to create ipmask object - {{ rule_item.ipaddress }} {{ rule_item.subnet }}"
+  when: 
+    - existing_ipmask_address.json.results == []
+    - new_ipmask_address_response.status != 200

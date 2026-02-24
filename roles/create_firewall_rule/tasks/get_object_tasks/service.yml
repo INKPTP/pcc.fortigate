@@ -1,0 +1,41 @@
+- name: "Ansible uri : GET service object - {{ rule_item }}"
+  ansible.builtin.uri:
+    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall.service/custom?vdom={{ rule.vdom }}&filter=tcp-portrange=={{ rule_item.split('/')[1] }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: existing_service_object
+
+- name: "Append service object name"
+  ansible.builtin.set_fact:
+    service: "{{ service + [{'name': existing_service_object.json.results[0].name}] }}"
+  when:
+    - existing_service_object.json.results != []
+
+- name: "Ansible uri : POST create service object - {{ rule_item }}"
+  ansible.builtin.uri:
+    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall.service/custom?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+    body_format: json
+    body:
+      json:    
+        name: "{{ rule_item | replace('/','_') }}"
+        tcp_portrange: "{{ rule_item.split('/')[1] }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: new_service_object_response
+  when: 
+    - existing_service_object.json.results == []
+
+- name: "Set fact new service object name"
+  ansible.builtin.set_fact:
+    service: "{{ service + [{'name': rule_item | replace('/','_')}] }}"
+  when: 
+    - existing_service_object.json.results == []
+    - new_service_object_response.status == 200

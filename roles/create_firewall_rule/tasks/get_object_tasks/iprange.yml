@@ -1,0 +1,67 @@
+- name: "Ansible uri : GET iprange object - {{ rule_item.ipaddress }} to {{ rule_item.subnet }}"
+  ansible.builtin.uri:
+    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}&filter=start-ip=={{ rule_item.start_ip }}&filter=end-ip=={{ rule_item.end_ip }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: existing_iprange_address
+
+- name: "Append iprange object name into srcaddr"
+  ansible.builtin.set_fact:
+    srcaddr: "{{ srcaddr + [{'name': existing_iprange_address.json.results[0].name }] }}"
+  when: 
+    - "'source' in action_tasks" 
+    - existing_iprange_address.json.results != []
+
+- name: "Append iprange object name into dstaddr"
+  ansible.builtin.set_fact:
+    dstaddr: "{{ dstaddr + [{'name': existing_iprange_address.json.results[0].name}] }}"
+  when: 
+    - "'destination' in action_tasks" 
+    - existing_iprange_address.json.results != []
+
+- name: "Ansible uri : POST create iprange object - {{ rule_item.start_ip }} to {{ rule_item.end_ip }}"
+  ansible.builtin.uri:
+    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+    body_format: json
+    body:
+      json:    
+        name: "{{ rule_item.start_ip }}-{{ rule_item.end_ip }}"
+        type: "iprange"
+        start-ip: "{{ rule_item.start_ip }}"
+        end-ip: "{{ rule_item.end_ip }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: new_iprange_address_response
+  when: 
+    - existing_iprange_address.json.results == []
+
+- name: "Append new iprange object name into srcaddr"
+  ansible.builtin.set_fact:
+    srcaddr: "{{ srcaddr + [{'name': rule_item.start_ip + '-' + rule_item.end_ip}] }}"
+  when: 
+    - "'source' in action_tasks" 
+    - existing_iprange_address.json.results == []
+    - new_iprange_address_response.status == 200
+
+- name: "Append new iprange object name into dstaddr"
+  ansible.builtin.set_fact:
+    dstaddr: "{{ dstaddr + [{'name': rule_item.start_ip + '-' + rule_item.end_ip}] }}"
+  when: 
+    - "'destination' in action_tasks" 
+    - existing_iprange_address.json.results == []
+    - new_iprange_address_response.status == 200
+
+- name: "Stop workflow if failed to create iprange object - {{ rule_item.start_ip }} {{ rule_item.end_ip }}"
+  ansible.builtin.fail:
+    msg: "Failed to create iprange object - {{ rule_item.start_ip }} {{ rule_item.end_ip }}"
+  when: 
+    - existing_iprange_address.json.results == []
+    - new_iprange_address_response.status != 200
