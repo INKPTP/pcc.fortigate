@@ -548,23 +548,28 @@ def retrive_vpn_user_ip_mapping(vpn_user_roles, vpn_ip_pools, source_list):
     ip_pool_list = []
     
     for source in source_list:
+        current_assign_role = None
+        current_user_list = None
+        
         for rule in vpn_user_roles:
             if source in rule['conditions']:
                 current_assign_role = rule['assigned_role']
                 current_user_list = rule['conditions']
-                # break
+                break
         
-        for pool in vpn_ip_pools:
-            for role in pool['applies_to_roles']:
-                if role == current_assign_role:
-                    current_ip_pool = {
-                        "pool_name": pool['profile_name'],
-                        "ipv4_addresses": pool['ipv4_addresses'],
-                        "applies_to_roles": pool['applies_to_roles'],
-                        "conditions": current_user_list
-                    }
-                    ip_pool_list.append(current_ip_pool)
-                    break
+        # Only process IP pools if a matching role was found
+        if current_assign_role is not None:
+            for pool in vpn_ip_pools:
+                for role in pool['applies_to_roles']:
+                    if role == current_assign_role:
+                        current_ip_pool = {
+                            "pool_name": pool['profile_name'],
+                            "ipv4_addresses": pool['ipv4_addresses'],
+                            "applies_to_roles": pool['applies_to_roles'],
+                            "conditions": current_user_list
+                        }
+                        ip_pool_list.append(current_ip_pool)
+                        break
         
     unique_pool_list = []
     unique_ip_pool_list = []
@@ -851,16 +856,24 @@ if __name__ == "__main__":
     all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg
     
     # check if source_list contains IP addresses or usernames, and retrieve VPN user IP mapping if needed
+    has_non_ip = False
     for item in source_list:
         try:
             ipaddress.ip_network(item, strict=False)
         except ValueError:
-            source_list = retrive_vpn_user_ip_mapping(vpn_user_role, vpn_ip_pool, source_list)
+            has_non_ip = True
+            break
+    
+    if has_non_ip:
+        vpn_ip_list = retrive_vpn_user_ip_mapping(vpn_user_role, vpn_ip_pool, source_list)
+        if not vpn_ip_list:
+            module.fail_json(msg=f"No VPN IP mapping found for users: {source_list}. Please verify VPN user roles and IP pools.")
+        source_list = vpn_ip_list
     
     # Find source device from source_list
     source_device_list = find_source_device(source_list, destination_list, service_list, all_devices)
     if not source_device_list:
-        exit(1)
+        module.fail_json(msg=f"No source device found for source IPs: {source_list}")
     
     source_device_name_list = []
     for device in source_device_list:
@@ -894,7 +907,6 @@ if __name__ == "__main__":
     
     if all_path_details:
         summarized_rules = summarize_firewall_rules(all_path_details)
+        module.exit_json(changed=False, result=summarized_rules)
     else:
-        print("\nNo firewall rules to save.")
-        
-    module.exit_json(changed=False, result=summarized_rules)
+        module.fail_json(msg="No firewall paths found. Unable to route from source to destination.")
