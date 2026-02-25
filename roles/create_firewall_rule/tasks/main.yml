@@ -69,10 +69,10 @@
 
 - name: "Create firewall policy via API"
   ansible.builtin.uri:
-    url: "{{ cred_rama6_fortigate_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}"
+    url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}"
     method: POST
     headers:
-      Authorization: "Bearer {{ cred_rama6_fortigate_api_token }}"
+      Authorization: "Bearer {{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
       Content-Type: "application/json"
     body_format: json
     body:
