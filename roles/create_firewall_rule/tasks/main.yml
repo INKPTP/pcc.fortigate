@@ -60,6 +60,7 @@
       action: "{{ rule.firewall_rule.action | lower}}"
       # status: "{{ status | default('enable') | lower}}"
       status: disable
+      logtraffic: all
       schedule: "{{ schedule }}"
       service: "{{ service }}"
 
