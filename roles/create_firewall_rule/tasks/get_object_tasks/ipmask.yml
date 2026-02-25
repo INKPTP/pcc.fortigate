@@ -38,6 +38,7 @@
     status_code: 200
     timeout: 60
     validate_certs: false
+    return_content: true
   register: new_ipmask_address_response
   when: 
     - existing_ipmask_address.json.results == []

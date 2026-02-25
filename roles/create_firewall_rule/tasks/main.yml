@@ -80,4 +80,5 @@
     status_code: 200
     validate_certs: false
     timeout: 60
+    return_content: true
   register: create_policy_response

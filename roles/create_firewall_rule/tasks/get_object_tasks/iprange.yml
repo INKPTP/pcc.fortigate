@@ -39,6 +39,7 @@
     status_code: 200
     timeout: 60
     validate_certs: false
+    return_content: true
   register: new_iprange_address_response
   when: 
     - existing_iprange_address.json.results == []

@@ -42,6 +42,7 @@
     status_code: 200
     timeout: 60
     validate_certs: false
+    return_content: true
   register: new_schedule_object_response
   when: 
     - existing_schedule_object.json.results == []
