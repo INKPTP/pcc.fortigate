@@ -47,7 +47,7 @@
     loop_var: rule_item
     label: "{{ rule_item }}"
 
-- name: set fact interface
+- name: set fact json payload
   ansible.builtin.set_fact:
     json_payload:
       name: "{{ rule.firewall_rule.name }}"
