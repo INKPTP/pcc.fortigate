@@ -32,22 +32,24 @@
     status_code: 200
     timeout: 60
     validate_certs: false
-  register: existing_fqdn_address
+  register: existing_fqdn_address_no_interface
   when: existing_fqdn_address.json.results == []
   
 - name: "Append fqdn object name into srcaddr - 2nd"
   ansible.builtin.set_fact:
-    srcaddr: "{{ srcaddr + [{'name': existing_fqdn_address.json.results[0].name}] }}"
+    srcaddr: "{{ srcaddr + [{'name': existing_fqdn_address_no_interface.json.results[0].name}] }}"
   when: 
     - "'source' in action_tasks" 
-    - existing_fqdn_address.json.results != []
+    - existing_fqdn_address_no_interface is not skipped
+    - existing_fqdn_address_no_interface.json.results != []
 
 - name: "Append fqdn object name into dstaddr - 2nd"
   ansible.builtin.set_fact:
-    dstaddr: "{{ dstaddr + [{'name': existing_fqdn_address.json.results[0].name}] }}"
+    dstaddr: "{{ dstaddr + [{'name': existing_fqdn_address_no_interface.json.results[0].name}] }}"
   when: 
     - "'destination' in action_tasks" 
-    - existing_fqdn_address.json.results != []
+    - existing_fqdn_address_no_interface is not skipped
+    - existing_fqdn_address_no_interface.json.results != []
 
 - name: "Ansible uri : POST create fqdn object - {{ rule_item.fqdn }}"
   ansible.builtin.uri:
@@ -68,6 +70,7 @@
   register: new_fqdn_address_response
   when: 
     - existing_fqdn_address.json.results == []
+    - existing_fqdn_address_no_interface is skipped or existing_fqdn_address_no_interface.json.results == []
 
 - name: "Append new fqdn object name into srcaddr"
   ansible.builtin.set_fact:
@@ -90,4 +93,6 @@
     msg: "Failed to create fqdn object - {{ rule_item.fqdn }}"
   when: 
     - existing_fqdn_address.json.results == []
+    - existing_fqdn_address_no_interface is skipped or existing_fqdn_address_no_interface.json.results == []
+    - new_fqdn_address_response is not skipped
     - new_fqdn_address_response.status != 200
