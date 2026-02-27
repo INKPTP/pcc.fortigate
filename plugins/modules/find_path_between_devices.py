@@ -907,6 +907,19 @@ if __name__ == "__main__":
     
     if all_path_details:
         summarized_rules = summarize_firewall_rules(all_path_details)
+        
+        # Group rules by device and append sequential numbers to rule names
+        device_rule_counts = {}
+        for rule in summarized_rules:
+            device_name = rule.get("device", "")
+            if device_name not in device_rule_counts:
+                device_rule_counts[device_name] = 0
+            device_rule_counts[device_name] += 1
+            
+            # Append sequential number to rule name
+            original_name = rule["firewall_rule"]["name"]
+            rule["firewall_rule"]["name"] = f"{original_name}_{device_rule_counts[device_name]}"
+        
         module.exit_json(changed=False, result=summarized_rules)
     else:
         module.fail_json(msg="No firewall paths found. Unable to route from source to destination.")
