@@ -3,10 +3,28 @@ from ansible.module_utils.basic import AnsibleModule
 import ipaddress
 import json
 import re
+import socket
 from typing import List, Iterable, Optional, Dict, Any
 # from openpyxl import Workbook
 # from openpyxl.styles import Font, Alignment, PatternFill
 # from datetime import datetime
+
+def is_private_ip(ip_str: str) -> bool:
+    """Check if IP address is private."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        return ip.is_private
+    except ValueError:
+        return False
+
+def resolve_fqdn(fqdn: str) -> List[str]:
+    """Resolve FQDN to IP address(es). Returns list of IPs or empty list if resolution fails."""
+    try:
+        result = socket.getaddrinfo(fqdn, None)
+        ips = list(set([addr[4][0] for addr in result]))
+        return ips
+    except (socket.gaierror, socket.error):
+        return []
 
 def convert_ip_to_object(ip_string: str) -> dict:
     """Convert IP string to detailed object format with type, ipaddress, subnet, cidr, start_ip, end_ip, fqdn."""
@@ -15,6 +33,44 @@ def convert_ip_to_object(ip_string: str) -> dict:
     # Check if it's a FQDN (contains letters, wildcards, or domain-like patterns)
     # FQDN should have at least one alphabetic character or asterisk
     if re.search(r'[a-zA-Z*]', ip_string) and not re.match(r'^[\d\.\/\-\s]+$', ip_string):
+        # Try to resolve the FQDN
+        resolved_ips = resolve_fqdn(ip_string)
+        
+        if resolved_ips:
+            # Check if all resolved IPs are private
+            all_private = all(is_private_ip(ip) for ip in resolved_ips)
+            
+            if all_private:
+                # Convert to ipmask or iprange based on number of IPs
+                if len(resolved_ips) == 1:
+                    # Single IP - return as ipmask
+                    return {
+                        "type": "ipmask",
+                        "ipaddress": resolved_ips[0],
+                        "subnet": "255.255.255.255",
+                        "cidr": 32,
+                        "start_ip": resolved_ips[0],
+                        "end_ip": resolved_ips[0],
+                        "fqdn": ""
+                    }
+                else:
+                    # Multiple IPs - return as iprange (use first and last IP)
+                    sorted_ips = sorted(resolved_ips, key=lambda ip: ipaddress.ip_address(ip))
+                    start_ip = sorted_ips[0]
+                    end_ip = sorted_ips[-1]
+                    return {
+                        "type": "iprange",
+                        "ipaddress": f"{start_ip} {end_ip}",
+                        "subnet": "",
+                        "cidr": 0,
+                        "start_ip": start_ip,
+                        "end_ip": end_ip,
+                        "fqdn": ""
+                    }
+            # else: at least one public IP, keep as FQDN
+        # else: resolution failed, keep as FQDN
+        
+        # Keep as FQDN for public IPs or resolution failures
         return {
             "type": "fqdn",
             "ipaddress": "",
