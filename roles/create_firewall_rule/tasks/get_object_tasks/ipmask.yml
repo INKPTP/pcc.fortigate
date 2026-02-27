@@ -77,7 +77,7 @@
     srcaddr: "{{ srcaddr + [{'name': rule_item.ipaddress}] }}"
   when: 
     - "'source' in action_tasks" 
-    - existing_ipmask_address.json.results == []
+    - new_ipmask_address_response is not skipped
     - new_ipmask_address_response.status == 200
 
 - name: "Append new ipmask object name into dstaddr"
@@ -85,7 +85,7 @@
     dstaddr: "{{ dstaddr + [{'name': rule_item.ipaddress}] }}"
   when: 
     - "'destination' in action_tasks" 
-    - existing_ipmask_address.json.results == []
+    - new_ipmask_address_response is not skipped
     - new_ipmask_address_response.status == 200
 
 - name: "Stop workflow if failed to create ipmask object - {{ rule_item.ipaddress }} {{ rule_item.subnet }}"

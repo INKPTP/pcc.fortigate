@@ -78,7 +78,7 @@
     srcaddr: "{{ srcaddr + [{'name': rule_item.start_ip + '-' + rule_item.end_ip}] }}"
   when: 
     - "'source' in action_tasks" 
-    - existing_iprange_address.json.results == []
+    - new_iprange_address_response is not skipped
     - new_iprange_address_response.status == 200
 
 - name: "Append new iprange object name into dstaddr"
@@ -86,7 +86,7 @@
     dstaddr: "{{ dstaddr + [{'name': rule_item.start_ip + '-' + rule_item.end_ip}] }}"
   when: 
     - "'destination' in action_tasks" 
-    - existing_iprange_address.json.results == []
+    - new_iprange_address_response is not skipped
     - new_iprange_address_response.status == 200
 
 - name: "Stop workflow if failed to create iprange object - {{ rule_item.start_ip }} {{ rule_item.end_ip }}"

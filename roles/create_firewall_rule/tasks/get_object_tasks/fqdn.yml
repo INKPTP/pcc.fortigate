@@ -77,7 +77,7 @@
     srcaddr: "{{ srcaddr + [{'name': rule_item.fqdn}] }}"
   when: 
     - "'source' in action_tasks" 
-    - existing_fqdn_address.json.results == []
+    - new_fqdn_address_response is not skipped
     - new_fqdn_address_response.status == 200
 
 - name: "Append new fqdn object name into dstaddr"
@@ -85,7 +85,7 @@
     dstaddr: "{{ dstaddr + [{'name': rule_item.fqdn}] }}"
   when: 
     - "'destination' in action_tasks" 
-    - existing_fqdn_address.json.results == []
+    - new_fqdn_address_response is not skipped
     - new_fqdn_address_response.status == 200
 
 - name: "Stop workflow if failed to create fqdn object - {{ rule_item.fqdn }}"
