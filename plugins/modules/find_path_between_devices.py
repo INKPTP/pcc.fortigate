@@ -927,6 +927,16 @@ if __name__ == "__main__":
     has_non_ip = False
     for item in source_list:
         try:
+            # Check if it's an IP range (contains -)
+            if "-" in item:
+                parts = item.split("-")
+                if len(parts) == 2:
+                    # Try to parse both parts as IP addresses
+                    ipaddress.ip_address(parts[0].strip())
+                    ipaddress.ip_address(parts[1].strip())
+                    # Valid IP range, continue to next item
+                    continue
+            # Try to parse as regular IP/network
             ipaddress.ip_network(item, strict=False)
         except ValueError:
             has_non_ip = True
