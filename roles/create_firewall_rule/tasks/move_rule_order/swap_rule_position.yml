@@ -8,7 +8,7 @@
 
 - name: "Ansible uri : Swap rule position"
   ansible.builtin.uri:
-    url: "{{ cred_url }}/api/v2/cmdb/firewall/policy/{{ mkey }}?vdom={{ rule.vdom }}&action=move&after={{ in_zone_deny_rule_id.policyid }}"
+    url: "{{ cred_url }}/api/v2/cmdb/firewall/policy/{{ in_zone_deny_rule_id.policyid }}?vdom={{ rule.vdom }}&action=move&after={{ mkey }}"
     method: PUT
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
