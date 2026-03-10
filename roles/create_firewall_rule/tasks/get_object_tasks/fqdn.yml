@@ -1,9 +1,9 @@
 - name: "Ansible uri : GET fqdn object - {{ rule_item.fqdn }}"
   ansible.builtin.uri:
-    url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}&filter==fqdn=@{{ rule_item.fqdn }}&filter==associated-interface=={{ rule.firewall_rule.incoming_interface | replace(' ','%20') if 'source' in action_tasks else rule.firewall_rule.outgoing_interface | replace(' ','%20') }}"
+    url: "{{ cred_url }}cmdb/firewall/address?vdom={{ rule.vdom }}&filter==fqdn=@{{ rule_item.fqdn }}&filter==associated-interface=={{ rule.firewall_rule.incoming_interface | replace(' ','%20') if 'source' in action_tasks else rule.firewall_rule.outgoing_interface | replace(' ','%20') }}"
     method: GET
     headers:
-      Authorization: "Bearer {{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
+      Authorization: "Bearer {{ cred_api_token }}"
     status_code: 200
     timeout: 60
     validate_certs: false
@@ -25,10 +25,10 @@
 
 - name: "Ansible uri : GET fqdn object - {{ rule_item.fqdn }}"
   ansible.builtin.uri:
-    url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}&filter==fqdn=@{{ rule_item.fqdn }}&filter==associated-interface=="
+    url: "{{ cred_url }}cmdb/firewall/address?vdom={{ rule.vdom }}&filter==fqdn=@{{ rule_item.fqdn }}&filter==associated-interface=="
     method: GET
     headers:
-      Authorization: "Bearer {{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
+      Authorization: "Bearer {{ cred_api_token }}"
     status_code: 200
     timeout: 60
     validate_certs: false
@@ -53,10 +53,10 @@
 
 - name: "Ansible uri : POST create fqdn object - {{ rule_item.fqdn }}"
   ansible.builtin.uri:
-    url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}cmdb/firewall/address?vdom={{ rule.vdom }}"
+    url: "{{ cred_url }}cmdb/firewall/address?vdom={{ rule.vdom }}"
     method: POST
     headers:
-      Authorization: "Bearer {{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
+      Authorization: "Bearer {{ cred_api_token }}"
     body_format: json
     body:
       json:    

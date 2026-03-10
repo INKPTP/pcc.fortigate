@@ -1,11 +1,13 @@
 - name: "Reset srcaddr"
   ansible.builtin.set_fact:
-    srcintf: ''
-    dstintf: ''
+    srcintf: ""
+    dstintf: ""
     srcaddr: []
     dstaddr: []
-    schedule: ''
+    schedule: ""
     service: []
+    cred_url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}"
+    cred_api_token: "{{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
 
 # retrive source object or create new object
 - name: "Include tasks : source"
@@ -51,7 +53,7 @@
   ansible.builtin.set_fact:
     json_payload:
       name: "{{ rule.firewall_rule.name }}"
-      srcintf: 
+      srcintf:
         - name: "{{ rule.firewall_rule.incoming_interface }}"
       dstintf:
         - name: "{{ rule.firewall_rule.outgoing_interface }}"
@@ -70,10 +72,10 @@
 
 - name: "Create firewall policy via API"
   ansible.builtin.uri:
-    url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}"
+    url: "{{ cred_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}"
     method: POST
     headers:
-      Authorization: "Bearer {{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
+      Authorization: "Bearer {{ cred_api_token }}"
       Content-Type: "application/json"
     body_format: json
     body:
@@ -83,3 +85,7 @@
     timeout: 60
     return_content: true
   register: create_policy_response
+
+- name: "include tasks swap_rule_position.yml"
+  ansible.builtin.include_tasks:
+    file: move_rule_order/swap_rule_position.yml

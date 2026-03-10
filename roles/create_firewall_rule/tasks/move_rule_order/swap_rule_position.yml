@@ -1,0 +1,21 @@
+- name: "Set fact new rule ID"
+  ansible.builtin.set_fact:
+    mkey: "{{ create_policy_response.json.mkey }}"
+
+- name: "include tasks find_deny_rule_in_zone.yml"
+  ansible.builtin.include_tasks:
+    file: move_rule_order/find_deny_rule_in_zone.yml
+
+- name: "Ansible uri : Swap rule position"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}/api/v2/cmdb/firewall/policy/{{ mkey }}?vdom={{ rule.vdom }}&action=move&after={{ in_zone_deny_rule_id.policyid }}"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+      Content-Type: "application/json"
+    status_code: 200
+    validate_certs: false
+    timeout: 60
+    return_content: true
+  when: 
+    - in_zone_deny_rule_id != {}

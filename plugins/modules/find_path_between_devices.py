@@ -227,10 +227,22 @@ def _parse_destination(dest: str) -> List[ipaddress._BaseAddress | ipaddress._Ba
     - single IP (e.g., 10.10.3.155)
     - network with prefix (e.g., 10.10.3.0/24)
     - IP range with dash (e.g., 10.10.3.10-10.10.3.20)
+    - FQDN (e.g., example.com) - will be resolved to IP addresses
     Returns list of address or network objects to test.
     """
 
     dest = dest.strip()
+    
+    # Check if it's an FQDN (contains letters)
+    if re.search(r'[a-zA-Z]', dest) and not re.match(r'^[\d\.\/\-\s]+$', dest):
+        # Try to resolve FQDN to IP addresses
+        resolved_ips = resolve_fqdn(dest)
+        if resolved_ips:
+            # Return list of IP address objects
+            return [ipaddress.ip_address(ip) for ip in resolved_ips]
+        else:
+            # Resolution failed, return empty list (route won't match)
+            return []
 
     # Range: A-B
     if "-" in dest:
