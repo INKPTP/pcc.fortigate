@@ -11,5 +11,5 @@
 
 - name: "Set fact find deny rule in zone"
   ansible.builtin.set_fact:
-    in_zone_deny_rule_id: "{{ deny_rule_response.json.results | selectattr('srcintf.0.name', 'equalto', rule.firewall_rule.srcintf.0.name) | selectattr('dstintf.0.name', 'equalto', rule.firewall_rule.dstintf.0.name) | selectattr('srcaddr.0.name', 'equalto', 'all') | selectattr('dstaddr.0.name', 'equalto', 'all') | list | first | default({}) }}"
+    in_zone_deny_rule_id: "{{ deny_rule_response.json.results | selectattr('srcintf.0.name', 'equalto', json_payload.srcintf.0.name) | selectattr('dstintf.0.name', 'equalto', json_payload.dstintf.0.name) | selectattr('srcaddr.0.name', 'equalto', 'all') | selectattr('dstaddr.0.name', 'equalto', 'all') | list | first | default({}) }}"
 
