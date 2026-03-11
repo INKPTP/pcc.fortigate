@@ -61,7 +61,7 @@
       dstaddr: "{{ dstaddr }}"
       action: "{{ rule.firewall_rule.action | lower}}"
       # status: "{{ status | default('enable') | lower}}"
-      status: disable
+      status: enable
       logtraffic: all
       schedule: "{{ schedule }}"
       service: "{{ service }}"
