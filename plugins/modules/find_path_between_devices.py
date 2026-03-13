@@ -628,8 +628,10 @@ def retrive_vpn_user_ip_mapping(vpn_user_rules, source_list):
     for source in source_list:
         source_lower = source.lower()
         for rule in vpn_user_rules:
+            if not rule.get('ipv4_addresses'):
+                continue
             if source_lower in [u.lower() for u in rule.get('usernames', [])]:
-                for ip in rule.get('ipv4_addresses', []):
+                for ip in rule['ipv4_addresses']:
                     if ip not in unique_ip_pool_list:
                         unique_ip_pool_list.append(ip)
                 break
