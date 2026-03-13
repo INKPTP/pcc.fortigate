@@ -903,8 +903,9 @@ if __name__ == "__main__":
     rama6_ftg = module.params["rama6_ftg"]
     rama6_core_switch = module.params["rama6_core_switch"]
     pttn_ftg = module.params["pttn_ftg"]
-    vpn_user_role = module.params["vpn_user_role"]
-    vpn_ip_pool = module.params["vpn_ip_pool"]
+    vpn_user_rules = module.params["vpn_user_rules"]
+    # vpn_user_role = module.params["vpn_user_role"]
+    # vpn_ip_pool = module.params["vpn_ip_pool"]
 
     all_devices = rama6_ftg + [rama6_core_switch] + pttn_ftg
     
@@ -928,7 +929,7 @@ if __name__ == "__main__":
             break
     
     if has_non_ip:
-        vpn_ip_list = retrive_vpn_user_ip_mapping(vpn_user_role, vpn_ip_pool, source_list)
+        vpn_ip_list = retrive_vpn_user_ip_mapping(vpn_user_rules, source_list)
         if not vpn_ip_list:
             module.fail_json(msg=f"No VPN IP mapping found for users: {source_list}. Please verify VPN user roles and IP pools.")
         source_list = vpn_ip_list
