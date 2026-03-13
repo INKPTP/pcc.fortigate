@@ -887,8 +887,9 @@ if __name__ == "__main__":
         rama6_ftg=dict(type="list", required=True),
         rama6_core_switch=dict(type="dict", required=True),
         pttn_ftg=dict(type="list", required=True),
-        vpn_user_role=dict(type="list", required=True),
-        vpn_ip_pool=dict(type="list", required=True)
+        vpn_user_rules=dict(type="list", required=True),
+        # vpn_user_role=dict(type="list", required=True),
+        # vpn_ip_pool=dict(type="list", required=True)
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
