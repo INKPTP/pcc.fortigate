@@ -612,44 +612,29 @@ def summarize_firewall_rules(path_details):
     
     return list(summary_map.values())
 
-def retrive_vpn_user_ip_mapping(vpn_user_roles, vpn_ip_pools, source_list):
-    ip_pool_list = []
-    
-    for source in source_list:
-        current_assign_role = None
-        current_user_list = None
-        
-        for rule in vpn_user_roles:
-            if source in rule['conditions']:
-                current_assign_role = rule['assigned_role']
-                current_user_list = rule['conditions']
-                break
-        
-        # Only process IP pools if a matching role was found
-        if current_assign_role is not None:
-            for pool in vpn_ip_pools:
-                for role in pool['applies_to_roles']:
-                    if role == current_assign_role:
-                        current_ip_pool = {
-                            "pool_name": pool['profile_name'],
-                            "ipv4_addresses": pool['ipv4_addresses'],
-                            "applies_to_roles": pool['applies_to_roles'],
-                            "conditions": current_user_list
-                        }
-                        ip_pool_list.append(current_ip_pool)
-                        break
-        
-    unique_pool_list = []
+def retrive_vpn_user_ip_mapping(vpn_user_rules, source_list):
+    """Map source usernames to their assigned VPN IP pools.
+
+    Each entry in vpn_user_rules is expected to follow the vpn_user_rules.json
+    schema, which combines role assignment and IP pool into a single record:
+        {
+            "usernames":     [...],   # list of usernames this rule applies to
+            "assigned_role": "...",   # role name (informational)
+            "ipv4_addresses": [...]   # IP ranges/addresses assigned by this rule
+        }
+    """
     unique_ip_pool_list = []
-    for item in ip_pool_list:
-        if item not in unique_pool_list:
-            unique_pool_list.append(item)
-    for item in unique_pool_list:
-        for ip in item['ipv4_addresses']:
-            if ip not in unique_ip_pool_list:
-                unique_ip_pool_list.append(ip)
-            
-    return unique_ip_pool_list 
+
+    for source in source_list:
+        source_lower = source.lower()
+        for rule in vpn_user_rules:
+            if source_lower in [u.lower() for u in rule.get('usernames', [])]:
+                for ip in rule.get('ipv4_addresses', []):
+                    if ip not in unique_ip_pool_list:
+                        unique_ip_pool_list.append(ip)
+                break
+
+    return unique_ip_pool_list
          
 def find_device_path(rule_name, source_device, destination_list, all_devices, connections, max_hops=20, max_paths=10, service_list=None, schedule=None, action=None):
     """Find multiple firewall paths from source device to destination IPs.
