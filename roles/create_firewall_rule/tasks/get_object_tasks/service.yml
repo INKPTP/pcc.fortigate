@@ -22,15 +22,15 @@
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
     body_format: json
-    body:
-      json:    
-        name: "{{ rule_item | replace('/','_') | string }}"
-        tcp_portrange: "{{ rule_item.split('/')[1] | string }}"
+    body: "{{ lookup('template', '../templates/service_object_payload/service_object_payload.j2') }}"
     status_code: 200
     timeout: 60
     validate_certs: false
     return_content: true
   register: new_service_object_response
+  vars:
+    service_name: "{{ rule_item | replace('/','_') | string }}"
+    service_port: "{{ rule_item.split('/')[1] | string }}"
   when: 
     - existing_service_object.json.results == []
 
