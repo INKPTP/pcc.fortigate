@@ -8,12 +8,15 @@
     timeout: 60
     validate_certs: false
   register: existing_service_object
+  when:
+    - rule_item != "ANY" 
 
 - name: "Append service object name"
   ansible.builtin.set_fact:
     service: "{{ service + [{'name': existing_service_object.json.results[0].name}] }}"
   when:
     - existing_service_object.json.results != []
+    - rule_item != "ANY" 
 
 - name: "Ansible uri : POST create service object - {{ rule_item }}"
   ansible.builtin.uri:
@@ -33,6 +36,7 @@
     service_port: "{{ rule_item.split('/')[1] | string }}"
   when: 
     - existing_service_object.json.results == []
+    - rule_item != "ANY" 
 
 - name: "Set fact new service object name"
   ansible.builtin.set_fact:
@@ -40,3 +44,13 @@
   when: 
     - existing_service_object.json.results == []
     - new_service_object_response.status == 200
+    - rule_item != "ANY"
+
+- name: "Set fact 'ALL' service object name"
+  ansible.builtin.set_fact:
+    service: "{{ service + [{'name': 'ALL'}] }}"
+  when: 
+    - existing_service_object.json.results == []
+    - new_service_object_response.status == 200
+    - rule_item == "ANY"
+
