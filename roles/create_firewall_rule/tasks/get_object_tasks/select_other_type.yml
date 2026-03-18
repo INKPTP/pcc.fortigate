@@ -17,4 +17,13 @@
 - name: "Include tasks : retrive service"
   ansible.builtin.include_tasks:
     file: get_object_tasks/service.yml
-  when: "'service' in action_tasks"
+  when: 
+    - "'service' in action_tasks"
+    - rule_item != "ANY"
+
+- name: "Set fact 'ALL' service object name"
+  ansible.builtin.set_fact:
+    service: "{{ service + [{'name': 'ALL'}] }}"
+  when: 
+    - "'service' in action_tasks"
+    - rule_item == "ANY"
