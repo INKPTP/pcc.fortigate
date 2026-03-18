@@ -446,8 +446,8 @@ def find_source_device(source_list, destination_list, service_list, device_list)
                 gateway = dev_info["gateway"]
                 route_type = dev_info["route_type"]
                 
-                # If route type is connect, skip (source is directly connected, should have been caught in first pass)
-                if route_type == "connect":
+                # If route type is connect/direct, skip (source is directly connected, should have been caught in first pass)
+                if route_type in {"connect", "direct", "connected"}:
                     continue
                 
                 # Check if the gateway is on any other device in our list
@@ -680,7 +680,9 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
             route_type = next_hop_route.get("type", "").lower()
             
             # Use gateway as key, or "connect" for directly connected
-            key = "connect" if route_type == "connect" else gateway
+            # Treat "direct" (Juniper) and "connected" as equivalent to "connect" (FortiGate)
+            _connected_types = {"connect", "direct", "connected"}
+            key = "connect" if route_type in _connected_types else gateway
             
             if key not in dest_by_next_hop:
                 dest_by_next_hop[key] = {
@@ -784,7 +786,8 @@ def find_device_path(rule_name, source_device, destination_list, all_devices, co
                             })
             
             # Check if destinations are directly connected
-            if route_type == "connect":
+            # Treat "direct" (Juniper) and "connected" as equivalent to "connect" (FortiGate)
+            if route_type in {"connect", "direct", "connected"}:
                 # Path completed for these destinations
                 all_paths.append({
                     "path": current_path.copy(),
