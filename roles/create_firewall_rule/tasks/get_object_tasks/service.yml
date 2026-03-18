@@ -50,7 +50,5 @@
   ansible.builtin.set_fact:
     service: "{{ service + [{'name': 'ALL'}] }}"
   when: 
-    - existing_service_object.json.results == []
-    - new_service_object_response.status == 200
     - rule_item == "ANY"
 
