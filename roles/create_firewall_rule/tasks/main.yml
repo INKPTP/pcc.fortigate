@@ -65,6 +65,7 @@
       logtraffic: all
       schedule: "{{ schedule }}"
       service: "{{ service }}"
+      comments: "{{ rule.firewall_rule.name }}"
 
 - name: "debug json payload"
   ansible.builtin.debug:
