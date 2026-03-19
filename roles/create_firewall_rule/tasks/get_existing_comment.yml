@@ -11,7 +11,7 @@
 
 - name: "Set fact comments with combine existing comment and new CR ID"
   ansible.builtin.set_fact:
-    comments: "{{ existing_rule.json.results[0].comments }} {{ rule.firewall_rule.name.split('_')[0] }}"
+    comments: "{{ existing_rule.json.results[0].comments }}, {{ rule.firewall_rule.name.split('_')[0] }}"
   when:
     - existing_rule.json.results != []
     - existing_rule.json.results[0].comments != ""
