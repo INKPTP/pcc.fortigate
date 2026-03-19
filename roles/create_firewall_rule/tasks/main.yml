@@ -49,6 +49,11 @@
     loop_var: rule_item
     label: "{{ rule_item }}"
 
+# retrive existing comment
+- name: "Include tasks : retrive existing comment"
+  ansible.builtin.include_tasks:
+    file: get_existing_comment.yml
+
 - name: set fact json payload
   ansible.builtin.set_fact:
     json_payload:
@@ -65,7 +70,7 @@
       logtraffic: all
       schedule: "{{ schedule }}"
       service: "{{ service }}"
-      comments: "{{ rule.firewall_rule.name }}"
+      comments: "{{ comments }}"
 
 - name: "debug json payload"
   ansible.builtin.debug:
