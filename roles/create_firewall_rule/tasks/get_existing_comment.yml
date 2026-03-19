@@ -1,6 +1,6 @@
 - name: "Ansible uri : GET fqdn object - {{ rule_item.fqdn }}"
   ansible.builtin.uri:
-    url: "{{ cred_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}&filter=name=@{{ existing_change_request_id }}"
+    url: "{{ cred_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}&filter=name=@{{ existing_change_request_id | default('') }}"
     method: GET
     headers:
       Authorization: "Bearer {{ cred_api_token }}"

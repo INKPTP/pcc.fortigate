@@ -53,6 +53,8 @@
 - name: "Include tasks : retrive existing comment"
   ansible.builtin.include_tasks:
     file: get_existing_comment.yml
+  vars:
+    existing_change_request_id: "{{ survey_existing_change_request_id }}"
 
 - name: set fact json payload
   ansible.builtin.set_fact:
