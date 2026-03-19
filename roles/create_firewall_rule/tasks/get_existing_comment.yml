@@ -1,4 +1,4 @@
-- name: "Ansible uri : GET fqdn object - {{ rule_item.fqdn }}"
+- name: "Ansible uri : GET exising rule for finding change history in comments"
   ansible.builtin.uri:
     url: "{{ cred_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}&filter=name=@{{ existing_change_request_id | default('') }}"
     method: GET
@@ -21,4 +21,3 @@
     comments: "{{ rule.firewall_rule.name.split('_')[0] }}"
   when:
     - existing_rule.json.results == []
-    - existing_rule.json.results[0].comments == ""

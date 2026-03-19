@@ -8,6 +8,7 @@
     service: []
     cred_url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}"
     cred_api_token: "{{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
+    existing_change_request_id: "{{ 'No_rule_search' if survey_existing_change_request_id == '' else survey_existing_change_request_id }}"
 
 # retrive source object or create new object
 - name: "Include tasks : source"
@@ -53,8 +54,7 @@
 - name: "Include tasks : retrive existing comment"
   ansible.builtin.include_tasks:
     file: get_existing_comment.yml
-  vars:
-    existing_change_request_id: "{{ survey_existing_change_request_id }}"
+  when: comments is not defined
 
 - name: set fact json payload
   ansible.builtin.set_fact:
