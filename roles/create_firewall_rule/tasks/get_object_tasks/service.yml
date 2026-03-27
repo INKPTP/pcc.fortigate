@@ -5,7 +5,7 @@
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
   register: existing_service_object
   when:
@@ -27,7 +27,7 @@
     body_format: json
     body: "{{ lookup('template', '../templates/service_object_payload/service_object_payload.j2') }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
     return_content: true
   register: new_service_object_response

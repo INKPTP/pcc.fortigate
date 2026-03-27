@@ -5,7 +5,7 @@
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
   register: existing_iprange_address
 
@@ -30,7 +30,7 @@
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
   register: existing_iprange_address_no_interface
   when: existing_iprange_address.json.results == []
@@ -65,7 +65,7 @@
         start-ip: "{{ rule_item.start_ip }}"
         end-ip: "{{ rule_item.end_ip }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
     return_content: true
   register: new_iprange_address_response

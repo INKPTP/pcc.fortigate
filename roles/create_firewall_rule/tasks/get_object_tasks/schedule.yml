@@ -17,7 +17,7 @@
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
   register: existing_schedule_object
 
@@ -40,7 +40,7 @@
         start: "{{ rule.firewall_rule.schedule.startTime }} {{ rule.firewall_rule.schedule.startDate | replace('-','/') }}"
         end: "{{ rule.firewall_rule.schedule.endTime }} {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
     status_code: 200
-    timeout: 60
+    timeout: 120
     validate_certs: false
     return_content: true
   register: new_schedule_object_response
