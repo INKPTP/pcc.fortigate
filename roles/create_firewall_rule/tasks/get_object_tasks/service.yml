@@ -31,6 +31,7 @@
     validate_certs: false
     return_content: true
   register: new_service_object_response
+  ignore_errors: true
   vars:
     service_name: "{{ rule_item | replace('/','_') | string }}"
     service_port: "{{ rule_item.split('/')[1] | string }}"
@@ -38,11 +39,42 @@
     - existing_service_object.json.results == []
     - rule_item != "ANY" 
 
+- name: "Ansible uri : POST create service object (retry) - {{ rule_item }}"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall.service/custom?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    body_format: json
+    body: "{{ lookup('template', '../templates/service_object_payload/service_object_payload.j2') }}"
+    status_code: 200
+    timeout: 120
+    validate_certs: false
+    return_content: true
+  register: new_service_object_response_retry
+  vars:
+    service_name: "{{ rule_item | replace('/','_') | string }}_Automation"
+    service_port: "{{ rule_item.split('/')[1] | string }}"
+  when:
+    - existing_service_object.json.results == []
+    - new_service_object_response is failed
+    - rule_item != "ANY"
+
 - name: "Set fact new service object name"
   ansible.builtin.set_fact:
     service: "{{ service + [{'name': rule_item | replace('/','_')}] }}"
   when: 
     - existing_service_object.json.results == []
+    - new_service_object_response is not failed
     - new_service_object_response.status == 200
+    - rule_item != "ANY"
+
+- name: "Set fact new service object name (retry)"
+  ansible.builtin.set_fact:
+    service: "{{ service + [{'name': rule_item | replace('/','_') + '_Automation'}] }}"
+  when:
+    - existing_service_object.json.results == []
+    - new_service_object_response is failed
+    - new_service_object_response_retry.status == 200
     - rule_item != "ANY"
 
