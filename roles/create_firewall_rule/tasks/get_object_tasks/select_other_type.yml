@@ -20,6 +20,7 @@
   when: 
     - "'service' in action_tasks"
     - rule_item != "ANY"
+    - rule_item != "ICMP"
 
 - name: "Set fact 'ALL' service object name"
   ansible.builtin.set_fact:
@@ -27,3 +28,12 @@
   when: 
     - "'service' in action_tasks"
     - rule_item == "ANY"
+    - rule_item != "ICMP"
+
+- name: "Set fact 'ICMP' service object name"
+  ansible.builtin.set_fact:
+    service: "{{ service + [{'name': 'ALL_ICMP'}] }}"
+  when: 
+    - "'service' in action_tasks"
+    - rule_item != "ANY"
+    - rule_item == "ICMP"
