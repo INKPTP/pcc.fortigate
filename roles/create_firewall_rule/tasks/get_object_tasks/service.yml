@@ -1,6 +1,6 @@
 - name: "Ansible uri : GET service object - {{ rule_item }}"
   ansible.builtin.uri:
-    url: "{{ cred_url }}cmdb/firewall.service/custom?vdom={{ rule.vdom }}&filter=tcp-portrange=={{ rule_item.split('/')[1] }}"
+    url: "{{ cred_url }}cmdb/firewall.service/custom?vdom={{ rule.vdom }}&filter={{ 'tcp' if 'TCP' in rule_item else 'udp' }}-portrange=={{ rule_item.split('/')[1] | regex_replace('^0+', '') }}"
     method: GET
     headers:
       Authorization: "Bearer {{ cred_api_token }}"
@@ -31,7 +31,8 @@
   ignore_errors: true
   vars:
     service_name: "{{ rule_item | replace('/','_') | string }}"
-    service_port: "{{ rule_item.split('/')[1] | string }}"
+    service_protocol: "{{ rule_item.split('/')[0] | string }}"
+    service_port: "{{ rule_item.split('/')[1] | regex_replace('^0+', '') | string }}"
   when: 
     - existing_service_object.json.results == []
 
@@ -50,7 +51,8 @@
   register: new_service_object_response_retry
   vars:
     service_name: "{{ rule_item | replace('/','_') | string }}_Automation"
-    service_port: "{{ rule_item.split('/')[1] | string }}"
+    service_protocol: "{{ rule_item.split('/')[0] | string }}"
+    service_port: "{{ rule_item.split('/')[1] | regex_replace('^0+', '') | string }}"
   when:
     - existing_service_object.json.results == []
     - new_service_object_response is failed
