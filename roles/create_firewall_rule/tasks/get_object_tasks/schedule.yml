@@ -47,16 +47,46 @@
   when: 
     - existing_schedule_object.json.results == []
 
+- name: "Ansible uri : POST create schedule object (retry) - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    body_format: json
+    body:
+      json:    
+        name: "{{ generated_schedule_name.schedule_name }}_Automation"
+        start: "{{ rule.firewall_rule.schedule.startTime }} {{ rule.firewall_rule.schedule.startDate | replace('-','/') }}"
+        end: "{{ rule.firewall_rule.schedule.endTime }} {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+    status_code: 200
+    timeout: 120
+    validate_certs: false
+    return_content: true
+  register: new_schedule_object_response_retry
+  when: 
+    - existing_schedule_object.json.results == []
+    - new_schedule_object_response is failed
+
 - name: "Set fact new schedule object name"
   ansible.builtin.set_fact:
     schedule: "{{ generated_schedule_name.schedule_name }}"
   when: 
     - existing_schedule_object.json.results == []
+    - new_schedule_object_response is not failed
     - new_schedule_object_response.status == 200
 
-- name: "Stop workflow if failed to create schedule object - {{ generated_schedule_name.schedule_name }}"
-  ansible.builtin.fail:
-    msg: "Failed to create schedule object - {{ generated_schedule_name.schedule_name }}"
+- name: "Set fact new schedule object name (retry)"
+  ansible.builtin.set_fact:
+    schedule: "{{ generated_schedule_name.schedule_name }}_Automation"
   when: 
     - existing_schedule_object.json.results == []
-    - new_schedule_object_response.status != 200
+    - new_schedule_object_response is failed
+    - new_schedule_object_response_retry.status == 200
+
+# - name: "Stop workflow if failed to create schedule object - {{ generated_schedule_name.schedule_name }}"
+#   ansible.builtin.fail:
+#     msg: "Failed to create schedule object - {{ generated_schedule_name.schedule_name }}"
+#   when: 
+#     - existing_schedule_object.json.results == []
+#     - new_schedule_object_response.status != 200
