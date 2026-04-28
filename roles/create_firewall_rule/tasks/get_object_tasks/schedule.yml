@@ -44,6 +44,7 @@
     validate_certs: false
     return_content: true
   register: new_schedule_object_response
+  ignore_errors: true
   when: 
     - existing_schedule_object.json.results == []
 
