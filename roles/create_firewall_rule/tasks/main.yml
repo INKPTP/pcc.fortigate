@@ -1,0 +1,99 @@
+- name: "Reset srcaddr"
+  ansible.builtin.set_fact:
+    srcintf: ""
+    dstintf: ""
+    srcaddr: []
+    dstaddr: []
+    schedule: ""
+    service: []
+    cred_url: "{{ cred_rama6_fortigate_url if rule.site == 'Rama6' else cred_pttn_fortigate_url }}"
+    cred_api_token: "{{ cred_rama6_fortigate_api_token if rule.site == 'Rama6' else cred_pttn_fortigate_api_token }}"
+    existing_change_request_id: "{{ 'No_rule_search' if survey_existing_change_request_id == '' else survey_existing_change_request_id }}"
+
+# retrive source object or create new object
+- name: "Include tasks : source"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/select_addr_type.yml
+  vars:
+    action_tasks: ["source"]
+  loop: "{{ rule.firewall_rule.source }}"
+  loop_control:
+    loop_var: rule_item
+    label: "{{ rule_item.ipaddress }}"
+
+# retrive destination object or create new object
+- name: "Include tasks : destination"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/select_addr_type.yml
+  vars:
+    action_tasks: ["destination"]
+  loop: "{{ rule.firewall_rule.destination }}"
+  loop_control:
+    loop_var: rule_item
+    label: "{{ rule_item.ipaddress }}"
+
+# retrive schedule object or create new object
+- name: "Include tasks : schedule"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/select_other_type.yml
+  vars:
+    action_tasks: ["schedule"]
+
+# retrive service object or create new object
+- name: "Include tasks : service"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/select_other_type.yml
+  vars:
+    action_tasks: ["service"]
+  loop: "{{ rule.firewall_rule.service }}"
+  loop_control:
+    loop_var: rule_item
+    label: "{{ rule_item }}"
+
+# retrive existing comment
+- name: "Include tasks : retrive existing comment"
+  ansible.builtin.include_tasks:
+    file: get_existing_comment.yml
+  when: comments is not defined
+
+- name: set fact json payload
+  ansible.builtin.set_fact:
+    json_payload:
+      name: "{{ rule.firewall_rule.name }}"
+      srcintf:
+        - name: "{{ rule.firewall_rule.incoming_interface }}"
+      dstintf:
+        - name: "{{ rule.firewall_rule.outgoing_interface }}"
+      srcaddr: "{{ srcaddr }}"
+      dstaddr: "{{ dstaddr }}"
+      action: "{{ rule.firewall_rule.action | lower}}"
+      # status: "{{ status | default('enable') | lower}}"
+      status: enable
+      logtraffic: all
+      schedule: "{{ schedule }}"
+      service: "{{ service }}"
+      comments: "{{ comments }}"
+
+- name: "debug json payload"
+  ansible.builtin.debug:
+    msg: "{{ json_payload }}"
+
+- name: "Create firewall policy via API"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      json: "{{ json_payload }}"
+    status_code: 200
+    validate_certs: false
+    timeout: 60
+    return_content: true
+  register: create_policy_response
+
+- name: "include tasks swap_rule_position.yml"
+  ansible.builtin.include_tasks:
+    file: move_rule_order/swap_rule_position.yml

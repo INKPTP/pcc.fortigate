@@ -1,0 +1,14 @@
+- name: "Include tasks : retrive ipmask"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/ipmask.yml
+  when: rule_item.type == "ipmask"
+
+- name: "Include tasks : retrive iprange"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/iprange.yml
+  when: rule_item.type == "iprange"
+
+- name: "Include tasks : retrive fqdn"
+  ansible.builtin.include_tasks:
+    file: get_object_tasks/fqdn.yml
+  when: rule_item.type == "fqdn"

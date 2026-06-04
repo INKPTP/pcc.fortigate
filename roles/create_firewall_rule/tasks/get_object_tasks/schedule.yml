@@ -1,0 +1,93 @@
+# Generate schedule name with format:
+#   - Empty dates: "always"
+#   - Same start/end date: "{day}{month}{year}" (e.g., "22Feb2026")
+#   - Whole month: "{month}{year}" (e.g., "Mar2026")
+#   - Date range: "{day}{month}-{day}{month}{year}" (e.g., "1Feb-31Mar2026" or "15Feb-20Mar2026")
+
+- name: generate_schedule_name
+  pcc.fortigate.generate_schedule_name:
+    start_date: "{{ rule.firewall_rule.schedule.startDate }}"
+    end_date: "{{ rule.firewall_rule.schedule.endDate }}"
+  register: generated_schedule_name
+
+- name: "Ansible uri : GET schedule object - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}&filter=start=@{{ rule.firewall_rule.schedule.startDate | replace('-','/') }}&filter=end=@{{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    status_code: 200
+    timeout: 120
+    validate_certs: false
+  register: existing_schedule_object
+
+- name: "Set fact schedule object name"
+  ansible.builtin.set_fact:
+    schedule: "{{ existing_schedule_object.json.results[0].name }}"
+  when:
+    - existing_schedule_object.json.results != []
+
+- name: "Ansible uri : POST create schedule object - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    body_format: json
+    body:
+      json:    
+        name: "{{ generated_schedule_name.schedule_name }}"
+        start: "{{ rule.firewall_rule.schedule.startTime }} {{ rule.firewall_rule.schedule.startDate | replace('-','/') }}"
+        end: "{{ rule.firewall_rule.schedule.endTime }} {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+    status_code: 200
+    timeout: 120
+    validate_certs: false
+    return_content: true
+  register: new_schedule_object_response
+  ignore_errors: true
+  when: 
+    - existing_schedule_object.json.results == []
+
+- name: "Ansible uri : POST create schedule object (retry) - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    body_format: json
+    body:
+      json:    
+        name: "{{ generated_schedule_name.schedule_name }}_Automation"
+        start: "{{ rule.firewall_rule.schedule.startTime }} {{ rule.firewall_rule.schedule.startDate | replace('-','/') }}"
+        end: "{{ rule.firewall_rule.schedule.endTime }} {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+    status_code: 200
+    timeout: 120
+    validate_certs: false
+    return_content: true
+  register: new_schedule_object_response_retry
+  when: 
+    - existing_schedule_object.json.results == []
+    - new_schedule_object_response is failed
+
+- name: "Set fact new schedule object name"
+  ansible.builtin.set_fact:
+    schedule: "{{ generated_schedule_name.schedule_name }}"
+  when: 
+    - existing_schedule_object.json.results == []
+    - new_schedule_object_response is not failed
+    - new_schedule_object_response.status == 200
+
+- name: "Set fact new schedule object name (retry)"
+  ansible.builtin.set_fact:
+    schedule: "{{ generated_schedule_name.schedule_name }}_Automation"
+  when: 
+    - existing_schedule_object.json.results == []
+    - new_schedule_object_response is failed
+    - new_schedule_object_response_retry.status == 200
+
+# - name: "Stop workflow if failed to create schedule object - {{ generated_schedule_name.schedule_name }}"
+#   ansible.builtin.fail:
+#     msg: "Failed to create schedule object - {{ generated_schedule_name.schedule_name }}"
+#   when: 
+#     - existing_schedule_object.json.results == []
+#     - new_schedule_object_response.status != 200

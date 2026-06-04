@@ -1,0 +1,22 @@
+- name: "Ansible uri : GET exising rule for finding change history in comments"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall/policy?vdom={{ rule.vdom }}&filter=name=@{{ existing_change_request_id | default('') }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    status_code: 200
+    timeout: 60
+    validate_certs: false
+  register: existing_rule
+
+- name: "Set fact comments with combine existing comment and new CR ID"
+  ansible.builtin.set_fact:
+    comments: "{{ existing_rule.json.results[0].comments }}, {{ rule.firewall_rule.name.split('_')[0] }}"
+  when:
+    - existing_rule.json.results != []
+
+- name: "Set fact comments without combine existing comment and new CR ID"
+  ansible.builtin.set_fact:
+    comments: "{{ rule.firewall_rule.name.split('_')[0] }}"
+  when:
+    - existing_rule.json.results == []
