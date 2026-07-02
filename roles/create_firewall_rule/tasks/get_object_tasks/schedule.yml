@@ -27,6 +27,19 @@
   when:
     - existing_schedule_object.json.results != []
 
+- name: "Ansible uri : GET existingschedule object - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+  ansible.builtin.uri:
+    url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}&filter=name=={{ generated_schedule_name.schedule_name }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ cred_api_token }}"
+    status_code: 200
+    timeout: 120
+    validate_certs: false
+  register: existing_schedule_name
+  when:
+    - existing_schedule_object.json.results == []
+
 - name: "Ansible uri : POST create schedule object - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
   ansible.builtin.uri:
     url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}"
@@ -36,7 +49,7 @@
     body_format: json
     body:
       json:    
-        name: "{{ generated_schedule_name.schedule_name }}"
+        name: "{{ generated_schedule_name.schedule_name if existing_schedule_object.json.results == [] else generated_schedule_name.schedule_name + '_1' }}"
         start: "{{ rule.firewall_rule.schedule.startTime }} {{ rule.firewall_rule.schedule.startDate | replace('-','/') }}"
         end: "{{ rule.firewall_rule.schedule.endTime }} {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
     status_code: 200
