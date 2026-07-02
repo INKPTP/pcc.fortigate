@@ -27,7 +27,7 @@
   when:
     - existing_schedule_object.json.results != []
 
-- name: "Ansible uri : GET existingschedule object - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
+- name: "Ansible uri : GET existing schedule object - {{ rule.firewall_rule.schedule.startDate | replace('-','/') }} to {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
   ansible.builtin.uri:
     url: "{{ cred_url }}cmdb/firewall.schedule/onetime?vdom={{ rule.vdom }}&filter=name=={{ generated_schedule_name.schedule_name }}"
     method: GET
@@ -49,7 +49,7 @@
     body_format: json
     body:
       json:    
-        name: "{{ generated_schedule_name.schedule_name if existing_schedule_object.json.results == [] else generated_schedule_name.schedule_name + '_1' }}"
+        name: "{{ generated_schedule_name.schedule_name if existing_schedule_name.json.results == [] else generated_schedule_name.schedule_name + '_1' }}"
         start: "{{ rule.firewall_rule.schedule.startTime }} {{ rule.firewall_rule.schedule.startDate | replace('-','/') }}"
         end: "{{ rule.firewall_rule.schedule.endTime }} {{ rule.firewall_rule.schedule.endDate | replace('-','/') }}"
     status_code: 200
